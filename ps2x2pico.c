@@ -64,16 +64,6 @@ int64_t blink_callback(alarm_id_t id, void *user_data) {
   }
 }
 
-int64_t repeat_callback(alarm_id_t id, void *user_data) {
-  if(repeat) {
-    repeating = true;
-    return repeatus;
-  }
-  
-  repeater = 0;
-  return 0;
-}
-
 bool ps2_send(uint8_t data) {
   sleep_us(DTDELAY);
   
@@ -225,6 +215,16 @@ void ps2_receive() {
   } else {
     ps2_send(0xfe);
   }
+}
+
+int64_t repeat_callback(alarm_id_t id, void *user_data) {
+  if(repeat) {
+    repeating = true;
+    return repeatus;
+  }
+  
+  repeater = 0;
+  return 0;
 }
 
 void gpio_callback(uint gpio, uint32_t events) {
