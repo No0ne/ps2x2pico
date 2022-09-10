@@ -1,6 +1,12 @@
 # ps2x2pico
 USB keyboard/mouse to PS/2 interface converter using a Raspberry Pi Pico
 
+
+|![hw1](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw1.jpg) |![hw2](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw2.jpg) |![hw3](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw3.jpg)|
+|-|-|-|
+
+Work in progress, use https://github.com/No0ne/ps2pico until finished.
+
 # Usage
 * Copy `ps2x2pico.uf2` to your Pi Pico by pressing BOOTSEL before pluggging in.
 * 3.3V/5V conversion is done using a bi-directional level shifter: https://learn.sparkfun.com/tutorials/bi-directional-logic-level-converter-hookup-guide/
