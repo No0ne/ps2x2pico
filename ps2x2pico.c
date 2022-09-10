@@ -9,10 +9,11 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-#define CLKIN  14
-#define CLKOUT 15
-#define DTIN   17
-#define DTOUT  16
+#define KBCLK 11
+#define KBDAT 12
+#define LVPWR 13
+#define MSCLK 14
+#define MSDAT 15
 
 #define CLKFULL 40
 #define CLKHALF 20
@@ -46,6 +47,13 @@ uint8_t const hid2ps2[] = {
   0x48, 0x50, 0x57, 0x5f
 };
 
+bool ps2_is_e0(uint8_t data) {
+  return data == 0x46 ||
+         data >= 0x48 && data <= 0x52 ||
+         data == 0x54 || data == 0x58 ||
+         data == 0x65 || data == 0x66;
+}
+
 int64_t blink_callback(alarm_id_t id, void *user_data) {
   if(blink) {
     blink = false;
@@ -56,49 +64,58 @@ int64_t blink_callback(alarm_id_t id, void *user_data) {
   }
 }
 
-bool ps2_is_e0(uint8_t data) {
-  return data == 0x46 ||
-         data >= 0x48 && data <= 0x52 ||
-         data == 0x54 || data == 0x58 ||
-         data == 0x65 || data == 0x66;
+int64_t repeat_callback(alarm_id_t id, void *user_data) {
+  if(repeat) {
+    repeating = true;
+    return repeatus;
+  }
+  
+  repeater = 0;
+  return 0;
 }
 
 bool ps2_send(uint8_t data) {
   sleep_us(DTDELAY);
   
-  if(!gpio_get(CLKIN)) return false;
-  if(!gpio_get(DTIN)) return false;
+  if(!gpio_get(KBCLK)) return false;
+  if(!gpio_get(KBDAT)) return false;
   
   lastps2 = data;
   uint8_t parity = 1;
   sending = true;
   
-  gpio_put(DTOUT, !0); sleep_us(CLKHALF);
-  gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-  gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
+  gpio_set_dir(KBCLK, GPIO_OUT);
+  gpio_set_dir(KBDAT, GPIO_OUT);
+  
+  gpio_put(KBDAT, 0); sleep_us(CLKHALF);
+  gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+  gpio_put(KBCLK, 1); sleep_us(CLKHALF);
   
   for(uint8_t i = 0; i < 8; i++) {
-    gpio_put(DTOUT, !(data & 0x01)); sleep_us(CLKHALF);
-    gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-    gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
+    gpio_put(KBDAT, data & 0x01); sleep_us(CLKHALF);
+    gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+    gpio_put(KBCLK, 1); sleep_us(CLKHALF);
   
     parity = parity ^ (data & 0x01);
     data = data >> 1;
   }
   
-  gpio_put(DTOUT, !parity); sleep_us(CLKHALF);
-  gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-  gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
+  gpio_put(KBDAT, parity); sleep_us(CLKHALF);
+  gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+  gpio_put(KBCLK, 1); sleep_us(CLKHALF);
   
-  gpio_put(DTOUT, !1); sleep_us(CLKHALF);
-  gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-  gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
+  gpio_put(KBDAT, 1); sleep_us(CLKHALF);
+  gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+  gpio_put(KBCLK, 1); sleep_us(CLKHALF);
+  
+  gpio_set_dir(KBCLK, GPIO_IN);
+  gpio_set_dir(KBDAT, GPIO_IN);
   
   sending = false;
   return true;
 }
 
-void ps2_receive() {
+/*void ps2_receive() {
   sending = true;
   uint16_t data = 0x00;
   uint16_t bit = 0x01;
@@ -205,38 +222,25 @@ void ps2_receive() {
   }
 }
 
-int64_t repeat_callback(alarm_id_t id, void *user_data) {
-  if(repeat) {
-    repeating = true;
-    return repeatus;
-  }
-  
-  repeater = 0;
-  return 0;
-}
-
 void gpio_callback(uint gpio, uint32_t events) {
   if(!sending && !gpio_get(DTIN)) {
     receiving = true;
   }
-}
+} */
 
 void main() {
   board_init();
   printf("ps2x2pico-0.1\n");
   
-  gpio_init(CLKOUT);
-  gpio_init(DTOUT);
-  gpio_init(CLKIN);
-  gpio_init(DTIN);
-  gpio_set_dir(CLKOUT, GPIO_OUT);
-  gpio_set_dir(DTOUT, GPIO_OUT);
-  gpio_set_dir(CLKIN, GPIO_IN);
-  gpio_set_dir(DTIN, GPIO_IN);
-  gpio_put(CLKOUT, !1);
-  gpio_put(DTOUT, !1);
+  gpio_init(KBCLK);
+  gpio_init(KBDAT);
+  gpio_init(MSCLK);
+  gpio_init(MSDAT);
+  gpio_init(LVPWR);
+  gpio_set_dir(LVPWR, GPIO_OUT);
+  gpio_put(LVPWR, 1);
   
-  gpio_set_irq_enabled_with_callback(CLKIN, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
+  //gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
   
   tusb_init();
   while(true) {
@@ -253,7 +257,7 @@ void main() {
     
     if(receiving) {
       receiving = false;
-      ps2_receive();
+      //ps2_receive();
     }
   }
 }
