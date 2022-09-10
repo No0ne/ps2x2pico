@@ -115,7 +115,7 @@ bool ps2_send(uint8_t data) {
   return true;
 }
 
-/*void ps2_receive() {
+void ps2_receive() {
   sending = true;
   uint16_t data = 0x00;
   uint16_t bit = 0x01;
@@ -124,11 +124,12 @@ bool ps2_send(uint8_t data) {
   uint8_t rp = 0;
   
   sleep_us(CLKHALF);
-  gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-  gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
+  gpio_set_dir(KBCLK, GPIO_OUT);
+  gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+  gpio_put(KBCLK, 1); sleep_us(CLKHALF);
 
   while(bit < 0x0100) {
-    if(gpio_get(DTIN)) {
+    if(gpio_get(KBDAT)) {
       data = data | bit;
       cp = cp ^ 1;
     } else {
@@ -138,21 +139,25 @@ bool ps2_send(uint8_t data) {
     bit = bit << 1;
     
     sleep_us(CLKHALF);
-    gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-    gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
+    gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+    gpio_put(KBCLK, 1); sleep_us(CLKHALF);
   }
 
-  rp = gpio_get(DTIN);
+  rp = gpio_get(KBDAT);
 
   sleep_us(CLKHALF);
-  gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-  gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
+  gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+  gpio_put(KBCLK, 1); sleep_us(CLKHALF);
 
   sleep_us(CLKHALF);
-  gpio_put(DTOUT, !0);
-  gpio_put(CLKOUT, !0); sleep_us(CLKFULL);
-  gpio_put(CLKOUT, !1); sleep_us(CLKHALF);
-  gpio_put(DTOUT, !1);
+  gpio_set_dir(KBDAT, GPIO_OUT);
+  gpio_put(KBDAT, 0);
+  gpio_put(KBCLK, 0); sleep_us(CLKFULL);
+  gpio_put(KBCLK, 1); sleep_us(CLKHALF);
+  //gpio_put(KBDAT, 1);
+  
+  gpio_set_dir(KBCLK, GPIO_IN);
+  gpio_set_dir(KBDAT, GPIO_IN);
   
   uint8_t received = data & 0x00ff;
   sending = false;
@@ -223,10 +228,10 @@ bool ps2_send(uint8_t data) {
 }
 
 void gpio_callback(uint gpio, uint32_t events) {
-  if(!sending && !gpio_get(DTIN)) {
+  if(!sending && !gpio_get(KBDAT)) {
     receiving = true;
   }
-} */
+}
 
 void main() {
   board_init();
@@ -240,7 +245,7 @@ void main() {
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
   
-  //gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
   
   tusb_init();
   while(true) {
@@ -257,7 +262,7 @@ void main() {
     
     if(receiving) {
       receiving = false;
-      //ps2_receive();
+      ps2_receive();
     }
   }
 }
