@@ -311,7 +311,7 @@ void ms2_receive() {
     
     if(received == 0xf2) {
       while(!ms2_send(0xfa));
-      while(!ms2_send(0x00));
+      while(!ms2_send(0x03));
       return;
     }
     
@@ -342,19 +342,19 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
 
 void irq_callback(uint gpio, uint32_t events) {  
   if(gpio == KBCLK && !sending && !gpio_get(KBDAT)) {
-    printf("IRQ KBDAT  ");
+    printf("IRQ KB  ");
     receiving = true;
   }
   
   if(gpio == MSCLK && !ms2send && !gpio_get(MSDAT)) {
-    printf("IRQ MSDAT  ");
+    printf("IRQ MS  ");
     ms2recv = true;
   }
 }
 
 void main() {
   board_init();
-  printf("ps2x2pico-0.1\n");
+  printf("ps2x2pico-0.2\n");
   
   gpio_init(KBCLK);
   gpio_init(KBDAT);
@@ -395,19 +395,24 @@ void main() {
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
   printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
   
-  const char* protocol_str[] = { "None", "Keyboard", "Mouse" };
-  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
-  printf("HID Interface Protocol = %s\n", protocol_str[itf_protocol]);
-  
-  if(itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
-    kbd_addr = dev_addr;
-    kbd_inst = instance;
+  switch(tuh_hid_interface_protocol(dev_addr, instance)) {
+    case HID_ITF_PROTOCOL_KEYBOARD:
+      printf("HID Interface Protocol = Keyboard\n");
+      tuh_hid_receive_report(dev_addr, instance);
+      
+      blink = true;
+      add_alarm_in_ms(100, blink_callback, NULL, false);
+      
+      kbd_addr = dev_addr;
+      kbd_inst = instance;
+    break;
     
-    blink = true;
-    add_alarm_in_ms(100, blink_callback, NULL, false);
+    case HID_ITF_PROTOCOL_MOUSE:
+      printf("HID Interface Protocol = Mouse\n");
+      tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+      tuh_hid_receive_report(dev_addr, instance);
+    break;
   }
-  
-  tuh_hid_receive_report(dev_addr, instance);
 }
 
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
@@ -419,31 +424,37 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
   
   if(itf_protocol == HID_ITF_PROTOCOL_MOUSE) {
-    printf("HID receive boot mouse report\n");
     board_led_write(1);
     
-    uint8_t buttons = report[0] + 8;
+    uint8_t s = report[0] + 8;
     uint8_t x = report[1] & 0x7f;
     uint8_t y = report[2] & 0x7f;
+    uint8_t z = report[3] & 7;
     
     if(report[1] >> 7) {
-      buttons = buttons + 0x10;
-      x = x + 0x80;
+      s += 0x10;
+      x += 0x80;
     }
     
     if(report[2] >> 7) {
       y = 0x80 - y;
     } else if(y) {
-      buttons = buttons + 0x20;
-      y = 0xff - y;
+      s += 0x20;
+      y = 0x100 - y;
     }
     
-    ms2_send(buttons); ms2_send(x); ms2_send(y); //ms2_send(0x00);
+    if(report[3] >> 7) {
+      z = 0x8 - z;
+    } else if(z) {
+      z = 0x100 - z;
+    }
+    
+    ms2_send(s); ms2_send(x);
+    ms2_send(y); ms2_send(z);
     board_led_write(0);
   }
   
   if(enabled && itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
-    printf("HID receive boot keyboard report\n");
     board_led_write(1);
     
     if(report[0] != prevhid[0]) {
