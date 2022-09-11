@@ -20,6 +20,6 @@ pico_enable_stdio_uart(ps2x2pico 1)
 pico_enable_stdio_usb(ps2x2pico 0)
 
 target_include_directories(ps2x2pico PUBLIC ${CMAKE_CURRENT_LIST_DIR})
-target_link_libraries(ps2x2pico pico_stdlib hardware_pio tinyusb_host tinyusb_board)
+target_link_libraries(ps2x2pico pico_stdlib tinyusb_host tinyusb_board)
 
 pico_add_extra_outputs(ps2x2pico)

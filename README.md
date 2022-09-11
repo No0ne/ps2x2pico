@@ -34,3 +34,7 @@ make
 
 # Resources
 * https://github.com/No0ne/ps2pico
+* https://wiki.osdev.org/PS/2_Keyboard
+* https://wiki.osdev.org/PS/2_Mouse
+* https://wiki.osdev.org/Mouse_Input
+* https://wiki.osdev.org/%228042%22_PS/2_Controller

@@ -1,10 +1,3 @@
-//#include <stdio.h>
-//#include "pico/stdlib.h"
-//#include "hardware/uart.h"
-//#include <stdlib.h>
-//#include <stdio.h>
-//#include <string.h>
-
 #include "hardware/gpio.h"
 #include "bsp/board.h"
 #include "tusb.h"
@@ -28,6 +21,8 @@ bool receiving = false;
 bool sending = false;
 bool enabled = true;
 bool blink = false;
+bool ms2send = false;
+bool ms2recv = false;
 
 uint8_t kbd_addr;
 uint8_t kbd_inst;
@@ -66,6 +61,7 @@ int64_t blink_callback(alarm_id_t id, void *user_data) {
 
 bool ps2_send(uint8_t data) {
   sleep_us(DTDELAY);
+  printf("send KB %02x\n", data);
   
   if(!gpio_get(KBCLK)) return false;
   if(!gpio_get(KBDAT)) return false;
@@ -144,7 +140,6 @@ void ps2_receive() {
   gpio_put(KBDAT, 0);
   gpio_put(KBCLK, 0); sleep_us(CLKFULL);
   gpio_put(KBCLK, 1); sleep_us(CLKHALF);
-  //gpio_put(KBDAT, 1);
   
   gpio_set_dir(KBCLK, GPIO_IN);
   gpio_set_dir(KBDAT, GPIO_IN);
@@ -153,6 +148,8 @@ void ps2_receive() {
   sending = false;
   
   if(rp == cp) {
+    
+    printf("got KB %02x  ", (unsigned char)received);
     
     if(received == 0xff) {
       while(!ps2_send(0xaa));
@@ -168,23 +165,21 @@ void ps2_receive() {
     } else if(received == 0xfe) {
       ps2_send(lastps2);
       return;
-      
+    
+    } else if(received == 0xf2) {
+      ps2_send(0xfa);
+      ps2_send(0xab);
+      ps2_send(0x83);
+      return;
+    
     } else if(received == 0xf4) {
       enabled = true;
-      return;
       
     } else if(received == 0xf5 || received == 0xf6) {
       enabled = received == 0xf6;
       repeatus = 35000;
       delayms = 250;
       uint8_t static value = 0; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1);
-      return;
-      
-    } else if(received == 0xf2) {
-      ps2_send(0xfa);
-      ps2_send(0xab);
-      ps2_send(0x83);
-      return;
     }
     
     if(prevps2 == 0xf3) {
@@ -217,6 +212,124 @@ void ps2_receive() {
   }
 }
 
+bool ms2_send(uint8_t data) {
+  sleep_us(DTDELAY);
+  printf("send MS %02x\n", data);
+  
+  if(!gpio_get(MSCLK)) return false;
+  if(!gpio_get(KBDAT)) return false;
+  
+  ms2send = true;
+  uint8_t parity = 1;
+  
+  gpio_set_dir(MSCLK, GPIO_OUT);
+  gpio_set_dir(MSDAT, GPIO_OUT);
+  
+  gpio_put(MSDAT, 0); sleep_us(CLKHALF);
+  gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+  gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  
+  for(uint8_t i = 0; i < 8; i++) {
+    gpio_put(MSDAT, data & 0x01); sleep_us(CLKHALF);
+    gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+    gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  
+    parity = parity ^ (data & 0x01);
+    data = data >> 1;
+  }
+  
+  gpio_put(MSDAT, parity); sleep_us(CLKHALF);
+  gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+  gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  
+  gpio_put(MSDAT, 1); sleep_us(CLKHALF);
+  gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+  gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  
+  gpio_set_dir(MSCLK, GPIO_IN);
+  gpio_set_dir(MSDAT, GPIO_IN);
+  
+  ms2send = false;
+  return true;
+}
+
+void ms2_receive() {
+  ms2send = true;
+  uint16_t data = 0x00;
+  uint16_t bit = 0x01;
+  
+  uint8_t cp = 1;
+  uint8_t rp = 0;
+  
+  sleep_us(CLKHALF);
+  gpio_set_dir(MSCLK, GPIO_OUT);
+  gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+  gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  
+  while(bit < 0x0100) {
+    if(gpio_get(MSDAT)) {
+      data = data | bit;
+      cp = cp ^ 1;
+    } else {
+      cp = cp ^ 0;
+    }
+  
+    bit = bit << 1;
+    
+    sleep_us(CLKHALF);
+    gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+    gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  }
+  
+  rp = gpio_get(MSDAT);
+  
+  sleep_us(CLKHALF);
+  gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+  gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  
+  sleep_us(CLKHALF);
+  gpio_set_dir(MSDAT, GPIO_OUT);
+  gpio_put(MSDAT, 0);
+  gpio_put(MSCLK, 0); sleep_us(CLKFULL);
+  gpio_put(MSCLK, 1); sleep_us(CLKHALF);
+  
+  gpio_set_dir(MSCLK, GPIO_IN);
+  gpio_set_dir(MSDAT, GPIO_IN);
+  
+  uint8_t received = data & 0x00ff;
+  ms2send = false;
+  
+  if(rp == cp) {
+    printf("got MS %02x  ", (unsigned char)received);
+    
+    if(received == 0xff) {
+      while(!ms2_send(0xfa));
+      while(!ms2_send(0xaa));
+      while(!ms2_send(0x00));
+      return;
+    }
+    
+    if(received == 0xf2) {
+      while(!ms2_send(0xfa));
+      while(!ms2_send(0x00));
+      return;
+    }
+    
+    if(received == 0xe9) {
+      while(!ms2_send(0xfa));
+      while(!ms2_send(0x00));
+      while(!ms2_send(0x02));
+      while(!ms2_send(0x64));
+      return;
+    }
+    
+    ms2_send(0xfa);
+    
+  } else {
+    ms2_send(0xfe);
+  }
+}
+
 int64_t repeat_callback(alarm_id_t id, void *user_data) {
   if(repeat) {
     repeating = true;
@@ -227,9 +340,15 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
   return 0;
 }
 
-void gpio_callback(uint gpio, uint32_t events) {
-  if(!sending && !gpio_get(KBDAT)) {
+void irq_callback(uint gpio, uint32_t events) {  
+  if(gpio == KBCLK && !sending && !gpio_get(KBDAT)) {
+    printf("IRQ KBDAT  ");
     receiving = true;
+  }
+  
+  if(gpio == MSCLK && !ms2send && !gpio_get(MSDAT)) {
+    printf("IRQ MSDAT  ");
+    ms2recv = true;
   }
 }
 
@@ -245,7 +364,8 @@ void main() {
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
   
-  gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &gpio_callback);
+  gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
+  gpio_set_irq_enabled_with_callback(MSCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
   
   tusb_init();
   while(true) {
@@ -264,24 +384,67 @@ void main() {
       receiving = false;
       ps2_receive();
     }
+    
+    if(ms2recv) {
+      ms2recv = false;
+      ms2_receive();
+    }
   }
 }
 
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
-  kbd_addr = dev_addr;
-  kbd_inst = instance;
+  printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
+  
+  const char* protocol_str[] = { "None", "Keyboard", "Mouse" };
+  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+  printf("HID Interface Protocol = %s\n", protocol_str[itf_protocol]);
+  
+  if(itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+    kbd_addr = dev_addr;
+    kbd_inst = instance;
+    
+    blink = true;
+    add_alarm_in_ms(100, blink_callback, NULL, false);
+  }
+  
   tuh_hid_receive_report(dev_addr, instance);
-  blink = true;
-  add_alarm_in_ms(100, blink_callback, NULL, false);
+}
+
+void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
+  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
-
-  if(enabled && tuh_hid_interface_protocol(dev_addr, instance) == HID_ITF_PROTOCOL_KEYBOARD) {
+  
+  uint8_t const itf_protocol = tuh_hid_interface_protocol(dev_addr, instance);
+  
+  if(itf_protocol == HID_ITF_PROTOCOL_MOUSE) {
+    printf("HID receive boot mouse report\n");
     board_led_write(1);
     
-    kbd_addr = dev_addr;
-    kbd_inst = instance;
+    uint8_t buttons = report[0] + 8;
+    uint8_t x = report[1] & 0x7f;
+    uint8_t y = report[2] & 0x7f;
+    
+    if(report[1] >> 7) {
+      buttons = buttons + 0x10;
+      x = x + 0x80;
+    }
+    
+    if(report[2] >> 7) {
+      y = 0x80 - y;
+    } else if(y) {
+      buttons = buttons + 0x20;
+      y = 0xff - y;
+    }
+    
+    ms2_send(buttons); ms2_send(x); ms2_send(y); //ms2_send(0x00);
+    board_led_write(0);
+  }
+  
+  if(enabled && itf_protocol == HID_ITF_PROTOCOL_KEYBOARD) {
+    printf("HID receive boot keyboard report\n");
+    board_led_write(1);
     
     if(report[0] != prevhid[0]) {
       uint8_t rbits = report[0];
