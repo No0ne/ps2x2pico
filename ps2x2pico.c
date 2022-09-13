@@ -409,7 +409,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
     
     case HID_ITF_PROTOCOL_MOUSE:
       printf("HID Interface Protocol = Mouse\n");
-      tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+      //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
       tuh_hid_receive_report(dev_addr, instance);
     break;
   }
@@ -425,6 +425,8 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   
   if(itf_protocol == HID_ITF_PROTOCOL_MOUSE) {
     board_led_write(1);
+    
+    printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
     
     uint8_t s = report[0] + 8;
     uint8_t x = report[1] & 0x7f;
