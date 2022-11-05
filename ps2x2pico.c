@@ -33,6 +33,7 @@
 #define MSCLK 14
 #define MSDAT 15
 
+uint8_t const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 uint8_t const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
 uint8_t const hid2ps2[] = {
   0x00, 0x00, 0xfc, 0x00, 0x1c, 0x32, 0x21, 0x23, 0x24, 0x2b, 0x34, 0x33, 0x43, 0x3b, 0x42, 0x4b,
@@ -64,6 +65,7 @@ uint8_t prev_kbd = 0;
 uint8_t resend_kbd = 0;
 uint8_t resend_ms = 0;
 uint8_t repeat = 0;
+uint8_t leds = 0;
 
 int64_t repeat_callback(alarm_id_t id, void *user_data) {
   if(repeat) {
@@ -93,7 +95,7 @@ void ps2_send(uint8_t data, bool channel) {
   uint8_t datout = channel ? KBDAT : MSDAT;
   
   uint8_t timeout = 10;
-  if(!gpio_get(clkout)) sleep_ms(1);
+  sleep_ms(1);
   
   while(timeout) {
     if(gpio_get(clkout) && gpio_get(datout)) {
@@ -154,16 +156,9 @@ void maybe_send_e0(uint8_t data) {
 }
 
 void kbd_set_leds(uint8_t data) {
-  // https://github.com/hathach/tinyusb/discussions/1191
-  // don't know how to use this properly, full example needed
-  if(data == 1) { uint8_t static value = 4; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); } else
-  if(data == 2) { uint8_t static value = 1; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); } else
-  if(data == 3) { uint8_t static value = 5; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); } else
-  if(data == 4) { uint8_t static value = 2; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); } else
-  if(data == 5) { uint8_t static value = 6; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); } else
-  if(data == 6) { uint8_t static value = 3; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); } else
-  if(data == 7) { uint8_t static value = 7; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); } else
-                { uint8_t static value = 0; tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, (void*)&value, 1); }
+  if(data > 7) data = 0;
+  leds = led2ps2[data];
+  tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, &leds, sizeof(leds));
 }
 
 int64_t blink_callback(alarm_id_t id, void *user_data) {
@@ -515,7 +510,7 @@ void irq_callback(uint gpio, uint32_t events) {
 
 void main() {
   board_init();
-  printf("ps2x2pico-0.3\n");
+  printf("ps2x2pico-0.4\n");
   
   gpio_init(KBCLK);
   gpio_init(KBDAT);
