@@ -2,15 +2,16 @@
 USB keyboard/mouse to PS/2 interface converter using a Raspberry Pi Pico
 
 
-|![hw1](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw1.jpg) |![hw2](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw2.jpg) |![hw3](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw3.jpg)|
-|-|-|-|
+|![hw1](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw1.jpg) |![hw2](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw2.jpg) |![hw3](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw3.jpg) |![hw4](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/hw4.jpg) |
+|-|-|-|-|
 
-Work in progress, use https://github.com/No0ne/ps2pico until finished.
+Keyboard only variant: https://github.com/No0ne/ps2pico
 
 # Usage
 * Copy `ps2x2pico.uf2` to your Pi Pico by pressing BOOTSEL before pluggging in.
 * 3.3V/5V conversion is done using a bi-directional level shifter: https://learn.sparkfun.com/tutorials/bi-directional-logic-level-converter-hookup-guide/
 * Afterwards connect a USB keyboard and/or mouse using an OTG-adapter and optional USB hub.
+* Also works with wireless keyboards and mice with a dedicated USB receiver.
 ```
                    _________________
                   |                 |
@@ -34,3 +35,8 @@ make
 
 # Resources
 * https://github.com/No0ne/ps2pico
+* https://wiki.osdev.org/PS/2_Keyboard
+* https://wiki.osdev.org/PS/2_Mouse
+* https://wiki.osdev.org/Mouse_Input
+* https://wiki.osdev.org/%228042%22_PS/2_Controller
+* https://isdaman.com/alsos/hardware/mouse/ps2interface.htm
