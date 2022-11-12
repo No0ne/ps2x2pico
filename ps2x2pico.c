@@ -67,6 +67,22 @@ uint8_t resend_ms = 0;
 uint8_t repeat = 0;
 uint8_t leds = 0;
 
+#define MS_TYPE_STANDARD  0x00
+#define MS_TYPE_WHEEL_3   0x03
+#define MS_TYPE_WHEEL_5   0x04
+
+#define MS_MODE_IDLE      0
+#define MS_MODE_STREAMING 1
+
+#define MS_INPUT_CMD      0
+#define MS_INPUT_SET_RATE 1
+
+uint8_t ms_type = MS_TYPE_STANDARD;
+uint8_t ms_mode = MS_MODE_IDLE;
+uint8_t ms_input_mode = MS_INPUT_CMD;
+uint8_t ms_rate = 100;
+uint32_t ms_magic_seq = 0x00;
+
 int64_t repeat_callback(alarm_id_t id, void *user_data) {
   if(repeat) {
     repeating = true;
@@ -176,12 +192,12 @@ int64_t blink_callback(alarm_id_t id, void *user_data) {
 
 void process_kbd(uint8_t data) {
   switch(prev_kbd) {
-    case 0xed:
+    case 0xed: // CMD: Set LEDs
       prev_kbd = 0;
       kbd_set_leds(data);
     break;
     
-    case 0xf3:
+    case 0xf3: // CMD: Set typematic rate and delay
       prev_kbd = 0;
       repeat_us = data & 0x1f;
       delay_ms = data & 0x60;
@@ -196,7 +212,7 @@ void process_kbd(uint8_t data) {
     
     default:
       switch(data) {
-        case 0xff:
+        case 0xff: // CMD: Reset
           kbd_send(0xfa);
           
           kbd_enabled = true;
@@ -209,34 +225,34 @@ void process_kbd(uint8_t data) {
           return;
         break;
         
-        case 0xfe:
+        case 0xfe: // CMD: Resend
           kbd_send(resend_kbd);
           return;
         break;
         
-        case 0xee:
+        case 0xee: // CMD: Echo
           kbd_send(0xee);
           return;
         break;
         
-        case 0xf2:
+        case 0xf2: // CMD: Identify keyboard
           kbd_send(0xfa);
           kbd_send(0xab);
           kbd_send(0x83);
           return;
         break;
         
-        case 0xf3:
-        case 0xed:
+        case 0xf3: // CMD: Set typematic rate and delay
+        case 0xed: // CMD: Set LEDs
           prev_kbd = data;
         break;
         
-        case 0xf4:
+        case 0xf4: // CMD: Enable scanning
           kbd_enabled = true;
         break;
         
-        case 0xf5:
-        case 0xf6:
+        case 0xf5: // CMD: Disable scanning, restore default parameters
+        case 0xf6: // CMD: Set default parameters
           kbd_enabled = data == 0xf6;
           repeat_us = 35000;
           delay_ms = 250;
@@ -250,46 +266,96 @@ void process_kbd(uint8_t data) {
 }
 
 void process_ms(uint8_t data) {
+
+  if(ms_input_mode == MS_INPUT_SET_RATE) {
+    ms_rate = data;  // TODO... need to actually honor the sample rate!
+    ms_input_mode = MS_INPUT_CMD;
+    ms_send(0xfa);
+
+    ms_magic_seq = (ms_magic_seq << 8) | data;
+    if(ms_type == MS_TYPE_STANDARD && ms_magic_seq == 0xc86450) {
+      ms_type = MS_TYPE_WHEEL_3;
+    } else if (ms_type == MS_TYPE_WHEEL_3 && ms_magic_seq == 0xc8c850) {
+      ms_type = MS_TYPE_WHEEL_5;
+    }
+    printf("  MS magic seq: %06x type: %d\n", ms_magic_seq, ms_type);
+    return;
+  }
+
+  if(data != 0xf3) {
+    ms_magic_seq = 0x00;
+  }
+
   switch(data) {
-    case 0xff:
+    case 0xff: // CMD: Reset
+      ms_type = MS_TYPE_STANDARD;
+      ms_mode = MS_MODE_IDLE;
+      ms_rate = 100;
+
       ms_send(0xfa);
       ms_send(0xaa);
-      ms_send(0x00);
-      return;
-    break;
-  
-    case 0xf2:
+      ms_send(ms_type);
+    return;
+
+    case 0xf6: // CMD: Set Defaults
+      ms_type = MS_TYPE_STANDARD;
+      ms_rate = 100;
+    case 0xf5: // CMD: Disable Data Reporting
+    case 0xea: // CMD: Set Stream Mode
+      ms_mode = MS_MODE_IDLE;
       ms_send(0xfa);
-      ms_send(0x03);
-      return;
-    break;
-    
-    case 0xe9:
+    return;
+
+    case 0xf4: // CMD: Enable Data Reporting
+      ms_mode = MS_MODE_STREAMING;
       ms_send(0xfa);
-      ms_send(0x00);
-      ms_send(0x02);
-      ms_send(0x64);
-      return;
-    break;
+    return;
+
+    case 0xf3: // CMD: Set Sample Rate
+      ms_input_mode = MS_INPUT_SET_RATE;
+      ms_send(0xfa);
+    return;
+
+    case 0xf2: // CMD: Get Device ID
+      ms_send(0xfa);
+      ms_send(ms_type);
+    return;
+
+    case 0xe9: // CMD: Status Request
+      ms_send(0xfa);
+      ms_send(0x00); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
+      ms_send(0x02); // Resolution
+      ms_send(ms_rate); // Sample Rate
+    return;
+
+// TODO: Implement (more of) these?
+//    case 0xfe: // CMD: Resend
+//    case 0xf0: // CMD: Set Remote Mode
+//    case 0xee: // CMD: Set Wrap Mode
+//    case 0xec: // CMD: Reset Wrap Mode
+//    case 0xeb: // CMD: Read Data
+//    case 0xe8: // CMD: Set Resolution
+//    case 0xe7: // CMD: Set Scaling 2:1
+//    case 0xe6: // CMD: Set Scaling 1:1
   }
-  
+
   ms_send(0xfa);
 }
 
 void ps2_receive(bool channel) {
   uint8_t clkin = channel ? KBCLK : MSCLK;
   uint8_t datin = channel ? KBDAT : MSDAT;
-  
+
   irq_enabled = false;
   board_led_write(1);
-  
+
   uint8_t bit = 1;
   uint8_t data = 0;
   uint8_t parity = 1;
-  
+
   gpio_set_dir(clkin, GPIO_OUT);
   ps2_cycle_clock(clkin);
-  
+
   while(bit) {
     if(gpio_get(datin)) {
       data = data | bit;
@@ -297,22 +363,22 @@ void ps2_receive(bool channel) {
     } else {
       parity = parity ^ 0;
     }
-    
+
     bit = bit << 1;
     ps2_cycle_clock(clkin);
   }
-  
+
   parity = gpio_get(datin) == parity;
   ps2_cycle_clock(clkin);
-  
+
   gpio_set_dir(datin, GPIO_OUT);
   ps2_set_bit(0, clkin, datin);
   gpio_set_dir(clkin, GPIO_IN);
   gpio_set_dir(datin, GPIO_IN);
-  
+
   irq_enabled = true;
   board_led_write(0);
-  
+
   if(!parity) {
     if(channel) {
       kbd_send(0xfe);
@@ -321,7 +387,7 @@ void ps2_receive(bool channel) {
     }
     return;
   }
-  
+
   if(channel) {
     printf("got KB %02x  ", (unsigned char)data);
     process_kbd(data);
@@ -333,7 +399,7 @@ void ps2_receive(bool channel) {
 
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
   printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
-  
+
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
       printf("HID Interface Protocol = Keyboard\n");
@@ -457,9 +523,14 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
-      board_led_write(1);
-      
       printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
+      
+      if(ms_mode != MS_MODE_STREAMING) {
+        tuh_hid_receive_report(dev_addr, instance);
+        return;
+      }
+      
+      board_led_write(1);
       
       uint8_t s = report[0] + 8;
       uint8_t x = report[1] & 0x7f;
@@ -478,14 +549,21 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         y = 0x100 - y;
       }
       
-      if(report[3] >> 7) {
-        z = 0x8 - z;
-      } else if(z) {
-        z = 0x100 - z;
-      }
+      ms_send(s);
+      ms_send(x);
+      ms_send(y);
       
-      ms_send(s); ms_send(x);
-      ms_send(y); ms_send(z);
+      if (ms_type == MS_TYPE_WHEEL_3 || ms_type == MS_TYPE_WHEEL_5) {
+        // TODO: add proper support for buttons 4 & 5
+        
+        if(report[3] >> 7) {
+          z = 0x8 - z;
+        } else if(z) {
+          z = 0x100 - z;
+        }
+        
+        ms_send(z);
+      }
       
       tuh_hid_receive_report(dev_addr, instance);
       board_led_write(0);
@@ -510,7 +588,7 @@ void irq_callback(uint gpio, uint32_t events) {
 
 void main() {
   board_init();
-  printf("ps2x2pico-0.4\n");
+  printf("ps2x2pico-0.5\n");
   
   gpio_init(KBCLK);
   gpio_init(KBDAT);
@@ -545,6 +623,5 @@ void main() {
       receive_ms = false;
       ps2_receive(false);
     }
-    
   }
 }
