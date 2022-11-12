@@ -192,12 +192,12 @@ int64_t blink_callback(alarm_id_t id, void *user_data) {
 
 void process_kbd(uint8_t data) {
   switch(prev_kbd) {
-    case 0xed:
+    case 0xed: // CMD: Set LEDs
       prev_kbd = 0;
       kbd_set_leds(data);
     break;
     
-    case 0xf3:
+    case 0xf3: // CMD: Set typematic rate and delay
       prev_kbd = 0;
       repeat_us = data & 0x1f;
       delay_ms = data & 0x60;
@@ -212,7 +212,7 @@ void process_kbd(uint8_t data) {
     
     default:
       switch(data) {
-        case 0xff:
+        case 0xff: // CMD: Reset
           kbd_send(0xfa);
           
           kbd_enabled = true;
@@ -225,34 +225,34 @@ void process_kbd(uint8_t data) {
           return;
         break;
         
-        case 0xfe:
+        case 0xfe: // CMD: Resend
           kbd_send(resend_kbd);
           return;
         break;
         
-        case 0xee:
+        case 0xee: // CMD: Echo
           kbd_send(0xee);
           return;
         break;
         
-        case 0xf2:
+        case 0xf2: // CMD: Identify keyboard
           kbd_send(0xfa);
           kbd_send(0xab);
           kbd_send(0x83);
           return;
         break;
         
-        case 0xf3:
-        case 0xed:
+        case 0xf3: // CMD: Set typematic rate and delay
+        case 0xed: // CMD: Set LEDs
           prev_kbd = data;
         break;
         
-        case 0xf4:
+        case 0xf4: // CMD: Enable scanning
           kbd_enabled = true;
         break;
         
-        case 0xf5:
-        case 0xf6:
+        case 0xf5: // CMD: Disable scanning, restore default parameters
+        case 0xf6: // CMD: Set default parameters
           kbd_enabled = data == 0xf6;
           repeat_us = 35000;
           delay_ms = 250;
@@ -523,46 +523,48 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
+      printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
+      
+      if(ms_mode != MS_MODE_STREAMING) {
+        tuh_hid_receive_report(dev_addr, instance);
+        return;
+      }
+      
       board_led_write(1);
       
-      printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
-
-      if(ms_mode == MS_MODE_STREAMING) {
-
-        uint8_t s = report[0] + 8;
-        uint8_t x = report[1] & 0x7f;
-        uint8_t y = report[2] & 0x7f;
-        uint8_t z = report[3] & 7;
-
-        if(report[1] >> 7) {
-          s += 0x10;
-          x += 0x80;
-        }
-
-        if(report[2] >> 7) {
-          y = 0x80 - y;
-        } else if(y) {
-          s += 0x20;
-          y = 0x100 - y;
-        }
-
-        ms_send(s);
-        ms_send(x);
-        ms_send(y);
-
-        if (ms_type == MS_TYPE_WHEEL_3 || ms_type == MS_TYPE_WHEEL_5) {
-          // TODO: add proper support for buttons 4 & 5
-
-          if(report[3] >> 7) {
-            z = 0x8 - z;
-          } else if(z) {
-            z = 0x100 - z;
-          }
-
-          ms_send(z);
-        }
+      uint8_t s = report[0] + 8;
+      uint8_t x = report[1] & 0x7f;
+      uint8_t y = report[2] & 0x7f;
+      uint8_t z = report[3] & 7;
+      
+      if(report[1] >> 7) {
+        s += 0x10;
+        x += 0x80;
       }
-
+      
+      if(report[2] >> 7) {
+        y = 0x80 - y;
+      } else if(y) {
+        s += 0x20;
+        y = 0x100 - y;
+      }
+      
+      ms_send(s);
+      ms_send(x);
+      ms_send(y);
+      
+      if (ms_type == MS_TYPE_WHEEL_3 || ms_type == MS_TYPE_WHEEL_5) {
+        // TODO: add proper support for buttons 4 & 5
+        
+        if(report[3] >> 7) {
+          z = 0x8 - z;
+        } else if(z) {
+          z = 0x100 - z;
+        }
+        
+        ms_send(z);
+      }
+      
       tuh_hid_receive_report(dev_addr, instance);
       board_led_write(0);
     break;
@@ -586,7 +588,7 @@ void irq_callback(uint gpio, uint32_t events) {
 
 void main() {
   board_init();
-  printf("ps2x2pico-0.4\n");
+  printf("ps2x2pico-0.5\n");
   
   gpio_init(KBCLK);
   gpio_init(KBDAT);
@@ -621,6 +623,5 @@ void main() {
       receive_ms = false;
       ps2_receive(false);
     }
-    
   }
 }
