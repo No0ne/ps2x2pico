@@ -25,6 +25,7 @@ Pico GPIO15 ______| LV4         HV4 |______ PS/2 mouse data
 ```
 
 # Build
+make sure Pico SDK is on `develop` branch
 ```
 export PICO_SDK_PATH=/path/to/pico-sdk
 mkdir build
