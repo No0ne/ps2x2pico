@@ -23,6 +23,7 @@
  *
  */
 
+#include "ps2dev.pio.h"
 #include "hardware/gpio.h"
 #include "bsp/board.h"
 #include "tusb.h"
@@ -47,14 +48,15 @@ uint8_t const hid2ps2[] = {
 };
 uint8_t const maparray = sizeof(hid2ps2) / sizeof(uint8_t);
 
-bool irq_enabled = true;
+PIO pio = pio0;
+uint const sm_kbd = 0;
+uint const sm_ms = 1;
+
 bool kbd_enabled = true;
 uint8_t kbd_addr = 0;
 uint8_t kbd_inst = 0;
 
 bool blinking = false;
-bool receive_kbd = false;
-bool receive_ms = false;
 bool repeating = false;
 uint32_t repeat_us = 35000;
 uint16_t delay_ms = 250;
@@ -78,7 +80,7 @@ uint8_t leds = 0;
 #define MS_INPUT_SET_RATE 1
 
 uint8_t ms_type = MS_TYPE_STANDARD;
-uint8_t ms_mode = MS_MODE_IDLE;
+uint8_t ms_mode = MS_MODE_STREAMING; //MS_MODE_IDLE;
 uint8_t ms_input_mode = MS_INPUT_CMD;
 uint8_t ms_rate = 100;
 uint32_t ms_magic_seq = 0x00;
@@ -93,62 +95,19 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
   return 0;
 }
 
-void ps2_cycle_clock(uint8_t clkout) {
-  sleep_us(20);
-  gpio_put(clkout, 0);
-  sleep_us(40);
-  gpio_put(clkout, 1);
-  sleep_us(20);
-}
-
-void ps2_set_bit(bool bit, uint8_t clkout, uint8_t datout) {
-  gpio_put(datout, bit);
-  ps2_cycle_clock(clkout);
-}
-
 void ps2_send(uint8_t data, bool channel) {
-  uint8_t clkout = channel ? KBCLK : MSCLK;
-  uint8_t datout = channel ? KBDAT : MSDAT;
-  
-  uint8_t timeout = 10;
-  sleep_ms(1);
-  
-  while(timeout) {
-    if(gpio_get(clkout) && gpio_get(datout)) {
-      
-      if(channel) {
-        resend_kbd = data;
-      } else {
-        resend_ms = data;
-      }
-      
-      uint8_t parity = 1;
-      irq_enabled = false;
-      
-      gpio_set_dir(clkout, GPIO_OUT);
-      gpio_set_dir(datout, GPIO_OUT);
-      ps2_set_bit(0, clkout, datout);
-      
-      for(uint8_t i = 0; i < 8; i++) {
-        ps2_set_bit(data & 0x01, clkout, datout);
-        parity = parity ^ (data & 0x01);
-        data = data >> 1;
-      }
-      
-      ps2_set_bit(parity, clkout, datout);
-      ps2_set_bit(1, clkout, datout);
-      
-      gpio_set_dir(clkout, GPIO_IN);
-      gpio_set_dir(datout, GPIO_IN);
-      
-      irq_enabled = true;
-      return;
-      
-    }
-    
-    timeout--;
-    sleep_ms(8);
+  if(channel) {
+    resend_kbd = data;
+  } else {
+    resend_ms = data;
   }
+  
+  uint8_t parity = 1;
+  for(uint8_t i = 0; i < 8; i++) {
+    parity = parity ^ (data >> i & 0x01);
+  }
+  
+  pio_sm_put(pio, channel ? sm_kbd : sm_ms, (1 << 10) + (parity << 9) + (data << 1));
 }
 
 void ms_send(uint8_t data) {
@@ -342,61 +301,6 @@ void process_ms(uint8_t data) {
   ms_send(0xfa);
 }
 
-void ps2_receive(bool channel) {
-  uint8_t clkin = channel ? KBCLK : MSCLK;
-  uint8_t datin = channel ? KBDAT : MSDAT;
-
-  irq_enabled = false;
-  board_led_write(1);
-
-  uint8_t bit = 1;
-  uint8_t data = 0;
-  uint8_t parity = 1;
-
-  gpio_set_dir(clkin, GPIO_OUT);
-  ps2_cycle_clock(clkin);
-
-  while(bit) {
-    if(gpio_get(datin)) {
-      data = data | bit;
-      parity = parity ^ 1;
-    } else {
-      parity = parity ^ 0;
-    }
-
-    bit = bit << 1;
-    ps2_cycle_clock(clkin);
-  }
-
-  parity = gpio_get(datin) == parity;
-  ps2_cycle_clock(clkin);
-
-  gpio_set_dir(datin, GPIO_OUT);
-  ps2_set_bit(0, clkin, datin);
-  gpio_set_dir(clkin, GPIO_IN);
-  gpio_set_dir(datin, GPIO_IN);
-
-  irq_enabled = true;
-  board_led_write(0);
-
-  if(!parity) {
-    if(channel) {
-      kbd_send(0xfe);
-    } else {
-      ms_send(0xfe);
-    }
-    return;
-  }
-
-  if(channel) {
-    printf("got KB %02x  ", (unsigned char)data);
-    process_kbd(data);
-  } else {
-    printf("got MS %02x  ", (unsigned char)data);
-    process_ms(data);
-  }
-}
-
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
   printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
 
@@ -572,34 +476,41 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   
 }
 
-void irq_callback(uint gpio, uint32_t events) {
-  if(irq_enabled) {
-    if(gpio == KBCLK && !gpio_get(KBDAT)) {
-      printf("IRQ KB  ");
-      receive_kbd = true;
-    }
-    
-    if(gpio == MSCLK && !gpio_get(MSDAT)) {
-      printf("IRQ MS  ");
-      receive_ms = true;
-    }
-  }
-}
-
 void main() {
   board_init();
-  printf("ps2x2pico-0.5\n");
+  printf("ps2x2pico-0.6\n");
   
-  gpio_init(KBCLK);
-  gpio_init(KBDAT);
-  gpio_init(MSCLK);
-  gpio_init(MSDAT);
+  pio_gpio_init(pio, KBCLK);
+  pio_gpio_init(pio, KBDAT);
+  pio_gpio_init(pio, MSCLK);
+  pio_gpio_init(pio, MSDAT);
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
   
-  gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
-  gpio_set_irq_enabled_with_callback(MSCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
+  uint offset = pio_add_program(pio, &ps2dev_program);
+  pio_sm_config c = ps2dev_program_get_default_config(offset);
+  pio_sm_config c2 = ps2dev_program_get_default_config(offset);
+  
+  pio_sm_set_consecutive_pindirs(pio, sm_kbd, KBCLK, 2, true);
+  pio_sm_set_consecutive_pindirs(pio, sm_ms, MSCLK, 2, true);
+  
+  sm_config_set_clkdiv(&c, 2560);
+  sm_config_set_set_pins(&c, KBCLK, 1);
+  sm_config_set_out_pins(&c, KBDAT, 1);
+  sm_config_set_out_shift(&c, true, true, 11);
+  
+  sm_config_set_clkdiv(&c2, 2560);
+  sm_config_set_set_pins(&c2, MSCLK, 1);
+  sm_config_set_out_pins(&c2, MSDAT, 1);
+  sm_config_set_out_shift(&c2, true, true, 11);
+  
+  pio_sm_init(pio, sm_kbd, offset, &c);
+  pio_sm_set_enabled(pio, sm_kbd, true);
+  
+  pio_sm_init(pio, sm_ms, offset, &c2);
+  pio_sm_set_enabled(pio, sm_ms, true);
+  
   tusb_init();
   
   while(true) {
@@ -612,16 +523,6 @@ void main() {
         maybe_send_e0(repeat);
         kbd_send(hid2ps2[repeat]);
       }
-    }
-    
-    if(receive_kbd) {
-      receive_kbd = false;
-      ps2_receive(true);
-    }
-    
-    if(receive_ms) {
-      receive_ms = false;
-      ps2_receive(false);
     }
   }
 }
