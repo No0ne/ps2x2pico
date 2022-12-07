@@ -1,0 +1,46 @@
+;
+; Copyright (c) 2022 No0ne (https://github.com/No0ne)
+;
+; SPDX-License-Identifier: MIT
+;
+
+.program ps2dev
+.side_set 1 opt pindirs
+
+start:
+  jmp !osre send
+clk_check:
+  jmp pin start
+  mov isr, null
+  in pins, 1
+  mov y, isr
+  jmp !y, receive
+  jmp clk_check
+
+receive:
+  wait 1 pin 31
+  set x, 9
+  set pindirs, 1 [1]
+receiveloop:
+  set pindirs, 0
+  in pins, 1
+  set pindirs, 1
+  jmp x-- receiveloop
+  nop side 1
+  set pindirs, 0 [1]
+  set pindirs, 1
+  set pindirs, 0 side 0
+  push
+  jmp clk_check
+
+send:
+  set x, 10
+  jmp pin sendloop
+  jmp clk_check
+sendloop:
+  set pindirs, 0
+  out pindirs, 1
+  set pindirs, 1
+  jmp x-- sendloop
+  set pindirs, 0
+  jmp clk_check

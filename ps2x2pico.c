@@ -23,7 +23,7 @@
  *
  */
 
-#include "ps2dev.pio.h"
+#include "ps2device.pio.h"
 #include "hardware/gpio.h"
 #include "bsp/board.h"
 #include "tusb.h"
@@ -80,7 +80,7 @@ uint8_t leds = 0;
 #define MS_INPUT_SET_RATE 1
 
 uint8_t ms_type = MS_TYPE_STANDARD;
-uint8_t ms_mode = MS_MODE_STREAMING; //MS_MODE_IDLE;
+uint8_t ms_mode = MS_MODE_IDLE;
 uint8_t ms_input_mode = MS_INPUT_CMD;
 uint8_t ms_rate = 100;
 uint32_t ms_magic_seq = 0x00;
@@ -104,10 +104,10 @@ void ps2_send(uint8_t data, bool channel) {
   
   uint8_t parity = 1;
   for(uint8_t i = 0; i < 8; i++) {
-    parity = parity ^ (data >> i & 0x01);
+    parity = parity ^ (data >> i & 1);
   }
   
-  pio_sm_put(pio, channel ? sm_kbd : sm_ms, (1 << 10) + (parity << 9) + (data << 1));
+  pio_sm_put(pio, channel ? sm_kbd : sm_ms, ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff);
 }
 
 void ms_send(uint8_t data) {
@@ -178,7 +178,8 @@ void process_kbd(uint8_t data) {
           blinking = true;
           add_alarm_in_ms(1, blink_callback, NULL, false);
           
-          sleep_ms(16);
+          sleep_ms(10);
+          pio_sm_clear_fifos(pio0, sm_kbd);
           kbd_send(0xaa);
           
           return;
@@ -250,7 +251,9 @@ void process_ms(uint8_t data) {
       ms_type = MS_TYPE_STANDARD;
       ms_mode = MS_MODE_IDLE;
       ms_rate = 100;
-
+      
+      sleep_ms(10);
+      pio_sm_clear_fifos(pio0, sm_ms);
       ms_send(0xfa);
       ms_send(0xaa);
       ms_send(ms_type);
@@ -490,24 +493,26 @@ void main() {
   
   uint offset = pio_add_program(pio, &ps2dev_program);
   pio_sm_config c = ps2dev_program_get_default_config(offset);
-  pio_sm_config c2 = ps2dev_program_get_default_config(offset);
-  
-  pio_sm_set_consecutive_pindirs(pio, sm_kbd, KBCLK, 2, true);
-  pio_sm_set_consecutive_pindirs(pio, sm_ms, MSCLK, 2, true);
-  
   sm_config_set_clkdiv(&c, 2560);
   sm_config_set_set_pins(&c, KBCLK, 1);
+  sm_config_set_sideset_pins(&c, KBDAT);
+  sm_config_set_jmp_pin(&c, KBCLK);
+  sm_config_set_in_pins(&c, KBDAT);
   sm_config_set_out_pins(&c, KBDAT, 1);
   sm_config_set_out_shift(&c, true, true, 11);
-  
-  sm_config_set_clkdiv(&c2, 2560);
-  sm_config_set_set_pins(&c2, MSCLK, 1);
-  sm_config_set_out_pins(&c2, MSDAT, 1);
-  sm_config_set_out_shift(&c2, true, true, 11);
-  
+  sm_config_set_in_shift(&c, true, false, 0);
   pio_sm_init(pio, sm_kbd, offset, &c);
   pio_sm_set_enabled(pio, sm_kbd, true);
   
+  pio_sm_config c2 = ps2dev_program_get_default_config(offset);
+  sm_config_set_clkdiv(&c2, 2560);
+  sm_config_set_set_pins(&c2, MSCLK, 1);
+  sm_config_set_sideset_pins(&c2, MSDAT);
+  sm_config_set_jmp_pin(&c2, MSCLK);
+  sm_config_set_in_pins(&c2, MSDAT);
+  sm_config_set_out_pins(&c2, MSDAT, 1);
+  sm_config_set_out_shift(&c2, true, true, 11);
+  sm_config_set_in_shift(&c2, true, false, 0);
   pio_sm_init(pio, sm_ms, offset, &c2);
   pio_sm_set_enabled(pio, sm_ms, true);
   
@@ -515,6 +520,42 @@ void main() {
   
   while(true) {
     tuh_task();
+    
+    if(pio_sm_get_rx_fifo_level(pio, sm_kbd)) {
+      uint32_t fifo = pio_sm_get_blocking(pio, sm_kbd);
+      printf("fifo %08x ", fifo);
+      fifo = fifo >> 22;
+      
+      uint8_t parity = 1;
+      for(uint8_t i = 0; i < 8; i++) {
+        parity = parity ^ (fifo >> i & 1);
+      }
+      
+      if(parity != (fifo >> 8 & 1)) {
+        kbd_send(0xfe);
+      } else {
+        printf("got KB %02x  ", (unsigned char)fifo);
+        process_kbd(fifo);
+      }
+    }
+    
+    if(pio_sm_get_rx_fifo_level(pio, sm_ms)) {
+      uint32_t fifo = pio_sm_get_blocking(pio, sm_ms);
+      printf("fifo %08x ", fifo);
+      fifo = fifo >> 22;
+      
+      uint8_t parity = 1;
+      for(uint8_t i = 0; i < 8; i++) {
+        parity = parity ^ (fifo >> i & 1);
+      }
+      
+      if(parity != (fifo >> 8 & 1)) {
+        ms_send(0xfe);
+      } else {
+        printf("got MS %02x  ", (unsigned char)fifo);
+        process_ms(fifo);
+      }
+    }
     
     if(repeating) {
       repeating = false;
