@@ -49,8 +49,9 @@ uint8_t const hid2ps2[] = {
 uint8_t const maparray = sizeof(hid2ps2) / sizeof(uint8_t);
 
 PIO pio = pio0;
-uint const sm_kbd = 0;
-uint const sm_ms = 1;
+PIO pio2 = pio1;
+uint sm_kbd;
+uint sm_ms;
 
 bool kbd_enabled = true;
 uint8_t kbd_addr = 0;
@@ -107,7 +108,7 @@ void ps2_send(uint8_t data, bool channel) {
     parity = parity ^ (data >> i & 1);
   }
   
-  pio_sm_put(pio, channel ? sm_kbd : sm_ms, ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff);
+  pio_sm_put(channel ? pio : pio2, channel ? sm_kbd : sm_ms, ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff);
 }
 
 void ms_send(uint8_t data) {
@@ -485,44 +486,73 @@ void main() {
   
   pio_gpio_init(pio, KBCLK);
   pio_gpio_init(pio, KBDAT);
-  pio_gpio_init(pio, MSCLK);
-  pio_gpio_init(pio, MSDAT);
+  pio_gpio_init(pio2, MSCLK);
+  pio_gpio_init(pio2, MSDAT);
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
   
-  uint offset = pio_add_program(pio, &ps2dev_program);
-  pio_sm_config c = ps2dev_program_get_default_config(offset);
+  uint offset = pio_add_program(pio, &ps2send_program);
+  uint offset2 = pio_add_program(pio, &ps2receive_program);
+  
+  uint offset3 = pio_add_program(pio2, &ps2send_program);
+  uint offset4 = pio_add_program(pio2, &ps2receive_program);
+  
+  sm_kbd = pio_claim_unused_sm(pio, true);
+  pio_sm_config c = ps2send_program_get_default_config(offset);
   sm_config_set_clkdiv(&c, 2560);
-  sm_config_set_set_pins(&c, KBCLK, 1);
-  sm_config_set_sideset_pins(&c, KBDAT);
+  sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
   sm_config_set_jmp_pin(&c, KBCLK);
-  sm_config_set_in_pins(&c, KBDAT);
+  sm_config_set_set_pins(&c, KBCLK, 1);
   sm_config_set_out_pins(&c, KBDAT, 1);
   sm_config_set_out_shift(&c, true, true, 11);
-  sm_config_set_in_shift(&c, true, false, 0);
   pio_sm_init(pio, sm_kbd, offset, &c);
   pio_sm_set_enabled(pio, sm_kbd, true);
   
-  pio_sm_config c2 = ps2dev_program_get_default_config(offset);
+  uint sm2 = pio_claim_unused_sm(pio, true);
+  pio_sm_config c2 = ps2receive_program_get_default_config(offset2);
   sm_config_set_clkdiv(&c2, 2560);
-  sm_config_set_set_pins(&c2, MSCLK, 1);
-  sm_config_set_sideset_pins(&c2, MSDAT);
-  sm_config_set_jmp_pin(&c2, MSCLK);
-  sm_config_set_in_pins(&c2, MSDAT);
-  sm_config_set_out_pins(&c2, MSDAT, 1);
-  sm_config_set_out_shift(&c2, true, true, 11);
-  sm_config_set_in_shift(&c2, true, false, 0);
-  pio_sm_init(pio, sm_ms, offset, &c2);
-  pio_sm_set_enabled(pio, sm_ms, true);
+  sm_config_set_fifo_join(&c2, PIO_FIFO_JOIN_RX);
+  sm_config_set_jmp_pin(&c2, KBCLK);
+  sm_config_set_set_pins(&c2, KBCLK, 1);
+  sm_config_set_sideset_pins(&c2, KBDAT);
+  sm_config_set_in_pins(&c2, KBDAT);
+  sm_config_set_in_shift(&c2, true, true, 11);
+  pio_sm_init(pio, sm2, offset2, &c2);
+  pio_sm_set_enabled(pio, sm2, true);
+  
+  
+  
+  sm_ms = pio_claim_unused_sm(pio2, true);
+  pio_sm_config c4 = ps2send_program_get_default_config(offset3);
+  sm_config_set_clkdiv(&c4, 2560);
+  sm_config_set_fifo_join(&c4, PIO_FIFO_JOIN_TX);
+  sm_config_set_jmp_pin(&c4, MSCLK);
+  sm_config_set_set_pins(&c4, MSCLK, 1);
+  sm_config_set_out_pins(&c4, MSDAT, 1);
+  sm_config_set_out_shift(&c4, true, true, 11);
+  pio_sm_init(pio2, sm_ms, offset3, &c4);
+  pio_sm_set_enabled(pio2, sm_ms, true);
+  
+  uint sm3 = pio_claim_unused_sm(pio2, true);
+  pio_sm_config c3 = ps2receive_program_get_default_config(offset4);
+  sm_config_set_clkdiv(&c3, 2560);
+  sm_config_set_fifo_join(&c3, PIO_FIFO_JOIN_RX);
+  sm_config_set_jmp_pin(&c3, MSCLK);
+  sm_config_set_set_pins(&c3, MSCLK, 1);
+  sm_config_set_sideset_pins(&c3, MSDAT);
+  sm_config_set_in_pins(&c3, MSDAT);
+  sm_config_set_in_shift(&c3, true, true, 11);
+  pio_sm_init(pio2, sm3, offset4, &c3);
+  pio_sm_set_enabled(pio2, sm3, true);
   
   tusb_init();
   
   while(true) {
     tuh_task();
     
-    if(pio_sm_get_rx_fifo_level(pio, sm_kbd)) {
-      uint32_t fifo = pio_sm_get_blocking(pio, sm_kbd);
+    if(pio_sm_get_rx_fifo_level(pio, sm2)) {
+      uint32_t fifo = pio_sm_get_blocking(pio, sm2);
       printf("fifo %08x ", fifo);
       fifo = fifo >> 22;
       
@@ -531,7 +561,7 @@ void main() {
         parity = parity ^ (fifo >> i & 1);
       }
       
-      if(parity != (fifo >> 8 & 1)) {
+      if(parity != fifo & 0x100) {
         kbd_send(0xfe);
       } else {
         printf("got KB %02x  ", (unsigned char)fifo);
@@ -539,8 +569,8 @@ void main() {
       }
     }
     
-    if(pio_sm_get_rx_fifo_level(pio, sm_ms)) {
-      uint32_t fifo = pio_sm_get_blocking(pio, sm_ms);
+    if(pio_sm_get_rx_fifo_level(pio2, sm3)) {
+      uint32_t fifo = pio_sm_get_blocking(pio2, sm3);
       printf("fifo %08x ", fifo);
       fifo = fifo >> 22;
       
@@ -549,7 +579,7 @@ void main() {
         parity = parity ^ (fifo >> i & 1);
       }
       
-      if(parity != (fifo >> 8 & 1)) {
+      if(parity != fifo & 0x100) {
         ms_send(0xfe);
       } else {
         printf("got MS %02x  ", (unsigned char)fifo);

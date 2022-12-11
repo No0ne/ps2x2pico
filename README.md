@@ -40,4 +40,5 @@ make
 * https://wiki.osdev.org/PS/2_Mouse
 * https://wiki.osdev.org/Mouse_Input
 * https://wiki.osdev.org/%228042%22_PS/2_Controller
-* https://isdaman.com/alsos/hardware/mouse/ps2interface.htm
+* http://www-ug.eecg.toronto.edu/msl/nios_devices/datasheets/PS2%20Keyboard%20Protocol.htm
+* http://www-ug.eecg.utoronto.ca/desl/nios_devices_SoC/datasheets/PS2%20Mouse%20Protocol.htm

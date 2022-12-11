@@ -4,18 +4,42 @@
 ; SPDX-License-Identifier: MIT
 ;
 
-.program ps2dev
+.program ps2send
+
+start:
+  jmp !osre sendrequest
+  irq clear 0
+  jmp start
+
+sendrequest:
+  irq set 0
+  jmp pin sendcheck
+  jmp start
+
+sendcheck:
+  set x, 10 [31]
+  jmp pin sendloop [7]
+  jmp start
+
+sendloop:
+  set pindirs, 0
+  out pindirs, 1
+  set pindirs, 1
+  jmp x-- sendloop
+  set pindirs, 0
+
+
+.program ps2receive
 .side_set 1 opt pindirs
 
 start:
-  jmp !osre send
-clk_check:
+  wait 0 irq 0
   jmp pin start
   mov isr, null
   in pins, 1
   mov y, isr
   jmp !y, receive
-  jmp clk_check
+  jmp start
 
 receive:
   wait 1 pin 31
@@ -30,17 +54,3 @@ receiveloop:
   set pindirs, 0 [1]
   set pindirs, 1
   set pindirs, 0 side 0
-  push
-  jmp clk_check
-
-send:
-  set x, 10
-  jmp pin sendloop
-  jmp clk_check
-sendloop:
-  set pindirs, 0
-  out pindirs, 1
-  set pindirs, 1
-  jmp x-- sendloop
-  set pindirs, 0
-  jmp clk_check
