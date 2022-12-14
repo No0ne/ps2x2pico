@@ -185,7 +185,7 @@ void process_kbd(uint8_t data) {
           blinking = true;
           add_alarm_in_ms(1, blink_callback, NULL, false);
           
-          sleep_ms(10);
+          sleep_ms(3);
           kbd_send(0xaa);
           
           return;
@@ -262,7 +262,7 @@ void process_ms(uint8_t data) {
       ms_mode = MS_MODE_IDLE;
       ms_rate = 100;
       
-      sleep_ms(10);
+      sleep_ms(3);
       ms_send(0xaa);
       ms_send(ms_type);
     return;

@@ -13,7 +13,7 @@ start:
 sendrequest:
   wait 0 irq 0
   set x, 10
-  set y, 10
+  set y, 16
 
 sendcheck:
   jmp pin senddelay
