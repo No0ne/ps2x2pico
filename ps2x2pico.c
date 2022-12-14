@@ -177,7 +177,8 @@ void process_kbd(uint8_t data) {
     default:
       switch(data) {
         case 0xff: // CMD: Reset
-          //pio_sm_clear_fifos(iokbd, sm_kbd);
+          pio_sm_drain_tx_fifo(iokbd, txkbd);
+          pio_sm_clear_fifos(iokbd, rxkbd);
           kbd_send(0xfa);
           
           kbd_enabled = true;
@@ -253,7 +254,8 @@ void process_ms(uint8_t data) {
 
   switch(data) {
     case 0xff: // CMD: Reset
-      //pio_sm_clear_fifos(ioms, sm_ms);
+      pio_sm_drain_tx_fifo(ioms, txms);
+      pio_sm_clear_fifos(ioms, rxms);
       ms_send(0xfa);
       
       ms_type = MS_TYPE_STANDARD;

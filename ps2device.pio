@@ -11,8 +11,9 @@ start:
   jmp start
 
 sendrequest:
+  wait 0 irq 0
   set x, 10
-  set y, 20
+  set y, 10
 
 sendcheck:
   jmp pin senddelay
