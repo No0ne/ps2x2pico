@@ -33,24 +33,23 @@ sendloop:
 
 
 .program ps2receive
-.side_set 1 opt pindirs
 
 start:
   jmp start
 
 receive:
-  set x, 9
   irq set 0
+  set pindirs, 1
+  set x, 8
 
 receiveloop:
-  set pindirs, 1 [3]
-  set pindirs, 0 [1]
+  set pindirs, 0
   in pins, 1
+  set pindirs, 1
   jmp x-- receiveloop
-  set pindirs, 1 [1]
-  nop side 1 [1]
-  set pindirs, 0 [3]
-  set pindirs, 1 [1]
-  nop side 0 [1]
+  set pindirs, 0
+  set pindirs, 2
+  set pindirs, 3 [1]
+  set pindirs, 2
   set pindirs, 0
   irq clear 0

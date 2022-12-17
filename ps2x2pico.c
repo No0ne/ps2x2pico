@@ -533,13 +533,12 @@ void main() {
   
   rxkbd = pio_claim_unused_sm(iokbd, true);
   pio_sm_config c2 = ps2receive_program_get_default_config(jmpkbd);
-  sm_config_set_clkdiv(&c2, 1280);
+  sm_config_set_clkdiv(&c2, 2560);
   sm_config_set_fifo_join(&c2, PIO_FIFO_JOIN_RX);
   sm_config_set_jmp_pin(&c2, KBCLK);
-  sm_config_set_set_pins(&c2, KBCLK, 1);
-  sm_config_set_sideset_pins(&c2, KBDAT);
+  sm_config_set_set_pins(&c2, KBCLK, 2);
   sm_config_set_in_pins(&c2, KBDAT);
-  sm_config_set_in_shift(&c2, true, true, 10);
+  sm_config_set_in_shift(&c2, true, true, 9);
   pio_sm_init(iokbd, rxkbd, jmpkbd, &c2);
   pio_sm_set_enabled(iokbd, rxkbd, true);
   
@@ -556,13 +555,12 @@ void main() {
   
   rxms = pio_claim_unused_sm(ioms, true);
   pio_sm_config c4 = ps2receive_program_get_default_config(jmpms);
-  sm_config_set_clkdiv(&c4, 1280);
+  sm_config_set_clkdiv(&c4, 2560);
   sm_config_set_fifo_join(&c4, PIO_FIFO_JOIN_RX);
   sm_config_set_jmp_pin(&c4, MSCLK);
-  sm_config_set_set_pins(&c4, MSCLK, 1);
-  sm_config_set_sideset_pins(&c4, MSDAT);
+  sm_config_set_set_pins(&c4, MSCLK, 2);
   sm_config_set_in_pins(&c4, MSDAT);
-  sm_config_set_in_shift(&c4, true, true, 10);
+  sm_config_set_in_shift(&c4, true, true, 9);
   pio_sm_init(ioms, rxms, jmpms, &c4);
   pio_sm_set_enabled(ioms, rxms, true);
   
@@ -576,7 +574,7 @@ void main() {
     if(!pio_sm_is_rx_fifo_empty(iokbd, rxkbd)) {
       uint32_t fifo = pio_sm_get(iokbd, rxkbd);
       printf("fifo %08x ", fifo);
-      fifo = fifo >> 22;
+      fifo = fifo >> 23;
       
       uint8_t parity = 1;
       for(uint8_t i = 0; i < 8; i++) {
@@ -594,7 +592,7 @@ void main() {
     if(pio_sm_get_rx_fifo_level(ioms, rxms)) {
       uint32_t fifo = pio_sm_get_blocking(ioms, rxms);
       printf("fifo %08x ", fifo);
-      fifo = fifo >> 22;
+      fifo = fifo >> 23;
       
       uint8_t parity = 1;
       for(uint8_t i = 0; i < 8; i++) {
