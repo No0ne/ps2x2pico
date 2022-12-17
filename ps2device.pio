@@ -4,14 +4,31 @@
 ; SPDX-License-Identifier: MIT
 ;
 
-.program ps2send
+.program ps2dev
+.side_set 1 opt pindirs
 
 start:
   jmp !osre sendrequest
   jmp start
 
+receive:
+  irq set 0
+  set pindirs, 1
+  set x, 8
+
+receiveloop:
+  set pindirs, 0
+  in pins, 1
+  set pindirs, 1
+  jmp x-- receiveloop
+  set pindirs, 0
+  nop side 1
+  set pindirs, 1 [1]
+  set pindirs, 0
+  irq clear 0 side 0
+  jmp start
+
 sendrequest:
-  wait 0 irq 0
   set x, 10
   set y, 16
 
@@ -30,26 +47,4 @@ sendloop:
   jmp x-- sendloop
   set pindirs, 0
   irq clear 0
-
-
-.program ps2receive
-
-start:
   jmp start
-
-receive:
-  irq set 0
-  set pindirs, 1
-  set x, 8
-
-receiveloop:
-  set pindirs, 0
-  in pins, 1
-  set pindirs, 1
-  jmp x-- receiveloop
-  set pindirs, 0
-  set pindirs, 2
-  set pindirs, 3 [1]
-  set pindirs, 2
-  set pindirs, 0
-  irq clear 0
