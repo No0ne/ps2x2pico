@@ -38,7 +38,6 @@ PIO iokbd = pio0;
 PIO ioms = pio1;
 uint txkbd;
 uint txms;
-uint rxms;
 uint jmpkbd;
 uint jmpms;
 
@@ -254,7 +253,7 @@ void process_ms(uint8_t data) {
   switch(data) {
     case 0xff: // CMD: Reset
       pio_sm_drain_tx_fifo(ioms, txms);
-      pio_sm_clear_fifos(ioms, rxms);
+      pio_sm_clear_fifos(ioms, txms);
       ms_send(0xfa);
       
       ms_type = MS_TYPE_STANDARD;
@@ -496,7 +495,7 @@ void irq_callback(uint gpio, uint32_t events) {
   if(gpio == MSCLK && !gpio_get(MSDAT) && !pio_interrupt_get(ioms, 0)) {
     printf("IRQ MS  ");
     pio_sm_drain_tx_fifo(ioms, txms);
-    pio_sm_exec(ioms, rxms, pio_encode_jmp(jmpms + 2));
+    pio_sm_exec(ioms, txms, pio_encode_jmp(jmpms + 2));
   }
 }
 
@@ -513,9 +512,7 @@ void main() {
   pio_gpio_init(ioms, MSDAT);
   
   jmpkbd = pio_add_program(iokbd, &ps2dev_program);
-  //uint offsetms = pio_add_program(ioms, &ps2send_program);
-  //jmpkbd = pio_add_program(iokbd, &ps2receive_program);
-  //jmpms = pio_add_program(ioms, &ps2receive_program);
+  jmpms = pio_add_program(ioms, &ps2dev_program);
   
   txkbd = pio_claim_unused_sm(iokbd, true);
   pio_sm_config c1 = ps2dev_program_get_default_config(jmpkbd);
@@ -530,28 +527,18 @@ void main() {
   pio_sm_init(iokbd, txkbd, jmpkbd, &c1);
   pio_sm_set_enabled(iokbd, txkbd, true);
   
-  /*
   txms = pio_claim_unused_sm(ioms, true);
-  pio_sm_config c3 = ps2send_program_get_default_config(offsetms);
-  sm_config_set_clkdiv(&c3, 2560);
-  sm_config_set_fifo_join(&c3, PIO_FIFO_JOIN_TX);
-  sm_config_set_jmp_pin(&c3, MSCLK);
-  sm_config_set_set_pins(&c3, MSCLK, 1);
-  sm_config_set_out_pins(&c3, MSDAT, 1);
-  sm_config_set_out_shift(&c3, true, true, 11);
-  pio_sm_init(ioms, txms, offsetms, &c3);
+  pio_sm_config c2 = ps2dev_program_get_default_config(jmpms);
+  sm_config_set_clkdiv(&c2, 2560);
+  sm_config_set_jmp_pin(&c2, MSCLK);
+  sm_config_set_set_pins(&c2, MSCLK, 1);
+  sm_config_set_sideset_pins(&c2, MSDAT);
+  sm_config_set_out_pins(&c2, MSDAT, 1);
+  sm_config_set_out_shift(&c2, true, true, 11);
+  sm_config_set_in_pins(&c2, MSDAT);
+  sm_config_set_in_shift(&c2, true, true, 9);
+  pio_sm_init(ioms, txms, jmpms, &c2);
   pio_sm_set_enabled(ioms, txms, true);
-  
-  rxms = pio_claim_unused_sm(ioms, true);
-  pio_sm_config c4 = ps2receive_program_get_default_config(jmpms);
-  sm_config_set_clkdiv(&c4, 2560);
-  sm_config_set_fifo_join(&c4, PIO_FIFO_JOIN_RX);
-  sm_config_set_jmp_pin(&c4, MSCLK);
-  sm_config_set_set_pins(&c4, MSCLK, 2);
-  sm_config_set_in_pins(&c4, MSDAT);
-  sm_config_set_in_shift(&c4, true, true, 9);
-  pio_sm_init(ioms, rxms, jmpms, &c4);
-  pio_sm_set_enabled(ioms, rxms, true);*/
   
   gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
   gpio_set_irq_enabled_with_callback(MSCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
@@ -578,8 +565,8 @@ void main() {
       }
     }
     
-    if(pio_sm_get_rx_fifo_level(ioms, rxms)) {
-      uint32_t fifo = pio_sm_get_blocking(ioms, rxms);
+    if(pio_sm_get_rx_fifo_level(ioms, txms)) {
+      uint32_t fifo = pio_sm_get_blocking(ioms, txms);
       printf("fifo %08x ", fifo);
       fifo = fifo >> 23;
       
