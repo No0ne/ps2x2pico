@@ -34,6 +34,8 @@
 #define MSCLK 14
 #define MSDAT 15
 
+#define DEBUG true
+
 uint8_t const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 uint8_t const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
 uint8_t const hid2ps2[] = {
@@ -49,11 +51,10 @@ uint8_t const hid2ps2[] = {
 uint8_t const maparray = sizeof(hid2ps2) / sizeof(uint8_t);
 
 PIO iokb = pio0;
-uint smkb;
-uint smkb_jmp;
-
 PIO ioms = pio1;
+uint smkb;
 uint smms;
+uint smkb_jmp;
 uint smms_jmp;
 
 bool kb_enabled = true;
@@ -99,29 +100,25 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
   return 0;
 }
 
-void ps2_send(uint8_t data, bool channel) {
-  if(channel) {
-    resend_kb = data;
-  } else {
-    resend_ms = data;
-  }
-  
+uint16_t ps2_frame(uint8_t data) {
   uint8_t parity = 1;
   for(uint8_t i = 0; i < 8; i++) {
     parity = parity ^ (data >> i & 1);
   }
   
-  pio_sm_put(channel ? iokb : ioms, channel ? smkb : smms, ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff);
+  return ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff;
 }
 
 void ms_send(uint8_t data) {
-  printf("send MS %02x\n", data);
-  ps2_send(data, false);
+  if(DEBUG) printf("send MS %02x\n", data);
+  resend_ms = data;
+  pio_sm_put(ioms, smms, ps2_frame(data));
 }
 
 void kb_send(uint8_t data) {
-  printf("send KB %02x\n", data);
-  ps2_send(data, true);
+  if(DEBUG) printf("send KB %02x\n", data);
+  resend_kb = data;
+  pio_sm_put(iokb, smkb, ps2_frame(data));
 }
 
 void maybe_send_e0(uint8_t data) {
@@ -130,7 +127,7 @@ void maybe_send_e0(uint8_t data) {
      data == 0x54 || data == 0x58 ||
      data == 0x65 || data == 0x66 ||
      data >= 0x81) {
-    ps2_send(0xe0, true);
+    kb_send(0xe0);
   }
 }
 
@@ -176,14 +173,13 @@ void process_kb(uint8_t data) {
     default:
       switch(data) {
         case 0xff: // CMD: Reset
-          pio_sm_drain_tx_fifo(iokb, smkb);
-          pio_sm_clear_fifos(iokb, smkb);
-          kb_send(0xfa);
-          
           kb_enabled = true;
           blinking = true;
           add_alarm_in_ms(1, blink_callback, NULL, false);
           
+          pio_sm_clear_fifos(iokb, smkb);
+          pio_sm_drain_tx_fifo(iokb, smkb);
+          kb_send(0xfa);
           kb_send(0xaa);
         return;
         
@@ -225,7 +221,6 @@ void process_kb(uint8_t data) {
 }
 
 void process_ms(uint8_t data) {
-
   if(ms_input_mode == MS_INPUT_SET_RATE) {
     ms_rate = data;  // TODO... need to actually honor the sample rate!
     ms_input_mode = MS_INPUT_CMD;
@@ -237,7 +232,7 @@ void process_ms(uint8_t data) {
     } else if (ms_type == MS_TYPE_WHEEL_3 && ms_magic_seq == 0xc8c850) {
       ms_type = MS_TYPE_WHEEL_5;
     }
-    printf("  MS magic seq: %06x type: %d\n", ms_magic_seq, ms_type);
+    if(DEBUG) printf("  MS magic seq: %06x type: %d\n", ms_magic_seq, ms_type);
     return;
   }
 
@@ -247,14 +242,13 @@ void process_ms(uint8_t data) {
 
   switch(data) {
     case 0xff: // CMD: Reset
-      pio_sm_drain_tx_fifo(ioms, smms);
-      pio_sm_clear_fifos(ioms, smms);
-      ms_send(0xfa);
-      
       ms_type = MS_TYPE_STANDARD;
       ms_mode = MS_MODE_IDLE;
       ms_rate = 100;
       
+      pio_sm_clear_fifos(ioms, smms);
+      pio_sm_drain_tx_fifo(ioms, smms);
+      ms_send(0xfa);
       ms_send(0xaa);
       ms_send(ms_type);
     return;
@@ -305,11 +299,11 @@ void process_ms(uint8_t data) {
 }
 
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
-  printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
+  if(DEBUG) printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
 
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      printf("HID Interface Protocol = Keyboard\n");
+      if(DEBUG) printf("HID Interface Protocol = Keyboard\n");
       
       kb_addr = dev_addr;
       kb_inst = instance;
@@ -322,7 +316,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
-      printf("HID Interface Protocol = Mouse\n");
+      if(DEBUG) printf("HID Interface Protocol = Mouse\n");
       //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
       ms_send(0xaa);
       tuh_hid_receive_report(dev_addr, instance);
@@ -331,7 +325,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
 }
 
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
-  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  if(DEBUG) printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
@@ -431,7 +425,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
-      printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
+      if(DEBUG) printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
       
       if(ms_mode != MS_MODE_STREAMING) {
         tuh_hid_receive_report(dev_addr, instance);
@@ -480,15 +474,44 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   
 }
 
+void check_fifo(PIO pio, uint sm, bool channel) {
+  if(!pio_sm_is_rx_fifo_empty(pio, sm)) {
+    uint32_t fifo = pio_sm_get(pio, sm);
+    if(DEBUG) printf("fifo %08x ", fifo);
+    fifo = fifo >> 23;
+    
+    uint8_t parity = 1;
+    for(uint8_t i = 0; i < 8; i++) {
+      parity = parity ^ (fifo >> i & 1);
+    }
+    
+    if(parity != fifo & 0x100) {
+      if(channel) {
+        kb_send(0xfe);
+      } else {
+        ms_send(0xfe);
+      }
+    } else {
+      if(channel) {
+        if(DEBUG) printf("got KB %02x  ", (uint8_t)fifo);
+        process_kb(fifo);
+      } else {
+        if(DEBUG) printf("got MS %02x  ", (uint8_t)fifo);
+        process_ms(fifo);
+      }
+    }
+  }
+}
+
 void irq_callback(uint gpio, uint32_t events) {
   if(gpio == KBCLK && !gpio_get(KBDAT) && !pio_interrupt_get(iokb, 0)) {
-    printf("IRQ KB  ");
+    if(DEBUG) printf("IRQ KB  ");
     pio_sm_drain_tx_fifo(iokb, smkb);
     pio_sm_exec(iokb, smkb, pio_encode_jmp(smkb_jmp + 2));
   }
   
   if(gpio == MSCLK && !gpio_get(MSDAT) && !pio_interrupt_get(ioms, 0)) {
-    printf("IRQ MS  ");
+    if(DEBUG) printf("IRQ MS  ");
     pio_sm_drain_tx_fifo(ioms, smms);
     pio_sm_exec(ioms, smms, pio_encode_jmp(smms_jmp + 2));
   }
@@ -496,7 +519,7 @@ void irq_callback(uint gpio, uint32_t events) {
 
 void main() {
   board_init();
-  printf("ps2x2pico-0.6\n");
+  printf("ps2x2pico-0.6 DEBUG=%s\n", DEBUG ? "true" : "false");
   
   smkb = pio_claim_unused_sm(iokb, true);
   smms = pio_claim_unused_sm(ioms, true);
@@ -517,41 +540,8 @@ void main() {
   while(true) {
     tuh_task();
     
-    if(!pio_sm_is_rx_fifo_empty(iokb, smkb)) {
-      uint32_t fifo = pio_sm_get(iokb, smkb);
-      printf("fifo %08x ", fifo);
-      fifo = fifo >> 23;
-      
-      uint8_t parity = 1;
-      for(uint8_t i = 0; i < 8; i++) {
-        parity = parity ^ (fifo >> i & 1);
-      }
-      
-      if(parity != fifo & 0x100) {
-        kb_send(0xfe);
-      } else {
-        printf("got KB %02x  ", (unsigned char)fifo);
-        process_kb(fifo);
-      }
-    }
-    
-    if(pio_sm_get_rx_fifo_level(ioms, smms)) {
-      uint32_t fifo = pio_sm_get_blocking(ioms, smms);
-      printf("fifo %08x ", fifo);
-      fifo = fifo >> 23;
-      
-      uint8_t parity = 1;
-      for(uint8_t i = 0; i < 8; i++) {
-        parity = parity ^ (fifo >> i & 1);
-      }
-      
-      if(parity != fifo & 0x100) {
-        ms_send(0xfe);
-      } else {
-        printf("got MS %02x  ", (unsigned char)fifo);
-        process_ms(fifo);
-      }
-    }
+    check_fifo(iokb, smkb, true);
+    check_fifo(ioms, smms, false);
     
     if(repeating) {
       repeating = false;
