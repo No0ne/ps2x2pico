@@ -48,3 +48,26 @@ sendloop:
   set pindirs, 0
   irq clear 0
   jmp start
+
+% c-sdk {
+
+  void ps2dev_program_init(PIO pio, uint sm, uint offset, uint clk, uint dat) {
+    pio_sm_config c = ps2dev_program_get_default_config(offset);
+    
+    pio_gpio_init(pio, clk);
+    pio_gpio_init(pio, dat);
+    
+    sm_config_set_clkdiv(&c, 2560);
+    sm_config_set_jmp_pin(&c, clk);
+    sm_config_set_set_pins(&c, clk, 1);
+    sm_config_set_sideset_pins(&c, dat);
+    sm_config_set_out_pins(&c, dat, 1);
+    sm_config_set_out_shift(&c, true, true, 11);
+    sm_config_set_in_pins(&c, dat);
+    sm_config_set_in_shift(&c, true, true, 9);
+    
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+  }
+
+%}

@@ -34,13 +34,6 @@
 #define MSCLK 14
 #define MSDAT 15
 
-PIO iokbd = pio0;
-PIO ioms = pio1;
-uint txkbd;
-uint txms;
-uint jmpkbd;
-uint jmpms;
-
 uint8_t const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 uint8_t const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
 uint8_t const hid2ps2[] = {
@@ -55,9 +48,17 @@ uint8_t const hid2ps2[] = {
 };
 uint8_t const maparray = sizeof(hid2ps2) / sizeof(uint8_t);
 
-bool kbd_enabled = true;
-uint8_t kbd_addr = 0;
-uint8_t kbd_inst = 0;
+PIO iokb = pio0;
+uint smkb;
+uint smkb_jmp;
+
+PIO ioms = pio1;
+uint smms;
+uint smms_jmp;
+
+bool kb_enabled = true;
+uint8_t kb_addr = 0;
+uint8_t kb_inst = 0;
 
 bool blinking = false;
 bool repeating = false;
@@ -66,8 +67,8 @@ uint16_t delay_ms = 250;
 alarm_id_t repeater;
 
 uint8_t prev_rpt[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-uint8_t prev_kbd = 0;
-uint8_t resend_kbd = 0;
+uint8_t prev_kb = 0;
+uint8_t resend_kb = 0;
 uint8_t resend_ms = 0;
 uint8_t repeat = 0;
 uint8_t leds = 0;
@@ -100,7 +101,7 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
 
 void ps2_send(uint8_t data, bool channel) {
   if(channel) {
-    resend_kbd = data;
+    resend_kb = data;
   } else {
     resend_ms = data;
   }
@@ -110,7 +111,7 @@ void ps2_send(uint8_t data, bool channel) {
     parity = parity ^ (data >> i & 1);
   }
   
-  pio_sm_put(channel ? iokbd : ioms, channel ? txkbd : txms, ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff);
+  pio_sm_put(channel ? iokb : ioms, channel ? smkb : smms, ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff);
 }
 
 void ms_send(uint8_t data) {
@@ -118,7 +119,7 @@ void ms_send(uint8_t data) {
   ps2_send(data, false);
 }
 
-void kbd_send(uint8_t data) {
+void kb_send(uint8_t data) {
   printf("send KB %02x\n", data);
   ps2_send(data, true);
 }
@@ -133,34 +134,34 @@ void maybe_send_e0(uint8_t data) {
   }
 }
 
-void kbd_set_leds(uint8_t data) {
+void kb_set_leds(uint8_t data) {
   if(data > 7) data = 0;
   leds = led2ps2[data];
-  tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, &leds, sizeof(leds));
+  tuh_hid_set_report(kb_addr, kb_inst, 0, HID_REPORT_TYPE_OUTPUT, &leds, sizeof(leds));
 }
 
 int64_t blink_callback(alarm_id_t id, void *user_data) {
-  if(kbd_addr) {
+  if(kb_addr) {
     if(blinking) {
-      kbd_set_leds(7);
+      kb_set_leds(7);
       blinking = false;
       return 500000;
     } else {
-      kbd_set_leds(0);
+      kb_set_leds(0);
     }
   }
   return 0;
 }
 
-void process_kbd(uint8_t data) {
-  switch(prev_kbd) {
+void process_kb(uint8_t data) {
+  switch(prev_kb) {
     case 0xed: // CMD: Set LEDs
-      prev_kbd = 0;
-      kbd_set_leds(data);
+      prev_kb = 0;
+      kb_set_leds(data);
     break;
     
     case 0xf3: // CMD: Set typematic rate and delay
-      prev_kbd = 0;
+      prev_kb = 0;
       repeat_us = data & 0x1f;
       delay_ms = data & 0x60;
       
@@ -175,58 +176,52 @@ void process_kbd(uint8_t data) {
     default:
       switch(data) {
         case 0xff: // CMD: Reset
-          pio_sm_drain_tx_fifo(iokbd, txkbd);
-          pio_sm_clear_fifos(iokbd, txkbd);
-          kbd_send(0xfa);
+          pio_sm_drain_tx_fifo(iokb, smkb);
+          pio_sm_clear_fifos(iokb, smkb);
+          kb_send(0xfa);
           
-          kbd_enabled = true;
+          kb_enabled = true;
           blinking = true;
           add_alarm_in_ms(1, blink_callback, NULL, false);
           
-          sleep_ms(3);
-          kbd_send(0xaa);
-          
-          return;
-        break;
+          kb_send(0xaa);
+        return;
         
         case 0xfe: // CMD: Resend
-          kbd_send(resend_kbd);
-          return;
-        break;
+          kb_send(resend_kb);
+        return;
         
         case 0xee: // CMD: Echo
-          kbd_send(0xee);
-          return;
-        break;
+          kb_send(0xee);
+        return;
         
         case 0xf2: // CMD: Identify keyboard
-          kbd_send(0xfa);
-          kbd_send(0xab);
-          kbd_send(0x83);
-          return;
-        break;
+          kb_send(0xfa);
+          kb_send(0xab);
+          kb_send(0x83);
+        return;
         
         case 0xf3: // CMD: Set typematic rate and delay
         case 0xed: // CMD: Set LEDs
-          prev_kbd = data;
+          prev_kb = data;
         break;
         
         case 0xf4: // CMD: Enable scanning
-          kbd_enabled = true;
+          kb_enabled = true;
         break;
         
         case 0xf5: // CMD: Disable scanning, restore default parameters
         case 0xf6: // CMD: Set default parameters
-          kbd_enabled = data == 0xf6;
+          kb_enabled = data == 0xf6;
           repeat_us = 35000;
           delay_ms = 250;
-          kbd_set_leds(0);
+          kb_set_leds(0);
         break;
       }
     break;
   }
   
-  kbd_send(0xfa);
+  kb_send(0xfa);
 }
 
 void process_ms(uint8_t data) {
@@ -252,15 +247,14 @@ void process_ms(uint8_t data) {
 
   switch(data) {
     case 0xff: // CMD: Reset
-      pio_sm_drain_tx_fifo(ioms, txms);
-      pio_sm_clear_fifos(ioms, txms);
+      pio_sm_drain_tx_fifo(ioms, smms);
+      pio_sm_clear_fifos(ioms, smms);
       ms_send(0xfa);
       
       ms_type = MS_TYPE_STANDARD;
       ms_mode = MS_MODE_IDLE;
       ms_rate = 100;
       
-      sleep_ms(3);
       ms_send(0xaa);
       ms_send(ms_type);
     return;
@@ -317,18 +311,20 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
     case HID_ITF_PROTOCOL_KEYBOARD:
       printf("HID Interface Protocol = Keyboard\n");
       
-      kbd_addr = dev_addr;
-      kbd_inst = instance;
+      kb_addr = dev_addr;
+      kb_inst = instance;
       
       blinking = true;
       add_alarm_in_ms(1, blink_callback, NULL, false);
       
+      kb_send(0xaa);
       tuh_hid_receive_report(dev_addr, instance);
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
       printf("HID Interface Protocol = Mouse\n");
       //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+      ms_send(0xaa);
       tuh_hid_receive_report(dev_addr, instance);
     break;
   }
@@ -342,8 +338,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      
-      if(!kbd_enabled || report[1] != 0) {
+      if(!kb_enabled || report[1] != 0) {
         tuh_hid_receive_report(dev_addr, instance);
         return;
       }
@@ -357,13 +352,13 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         for(uint8_t j = 0; j < 8; j++) {
           
           if((rbits & 0x01) != (pbits & 0x01)) {
-            if(j > 2 && j != 5) kbd_send(0xe0);
+            if(j > 2 && j != 5) kb_send(0xe0);
             
             if(rbits & 0x01) {
-              kbd_send(mod2ps2[j]);
+              kb_send(mod2ps2[j]);
             } else {
-              kbd_send(0xf0);
-              kbd_send(mod2ps2[j]);
+              kb_send(0xf0);
+              kb_send(mod2ps2[j]);
             }
           }
           
@@ -391,8 +386,8 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             if(prev_rpt[i] == repeat) repeat = 0;
             
             maybe_send_e0(prev_rpt[i]);
-            kbd_send(0xf0);
-            kbd_send(hid2ps2[prev_rpt[i]]);
+            kb_send(0xf0);
+            kb_send(hid2ps2[prev_rpt[i]]);
           }
         }
         
@@ -410,10 +405,10 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             if(report[i] == 0x48) {
               
               if(report[0] & 0x1 || report[0] & 0x10) {
-                kbd_send(0xe0); kbd_send(0x7e); kbd_send(0xe0); kbd_send(0xf0); kbd_send(0x7e);
+                kb_send(0xe0); kb_send(0x7e); kb_send(0xe0); kb_send(0xf0); kb_send(0x7e);
               } else {
-                kbd_send(0xe1); kbd_send(0x14); kbd_send(0x77); kbd_send(0xe1);
-                kbd_send(0xf0); kbd_send(0x14); kbd_send(0xf0); kbd_send(0x77);
+                kb_send(0xe1); kb_send(0x14); kb_send(0x77); kb_send(0xe1);
+                kb_send(0xf0); kb_send(0x14); kb_send(0xf0); kb_send(0x77);
               }
               
               continue;
@@ -424,7 +419,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
             
             maybe_send_e0(report[i]);
-            kbd_send(hid2ps2[report[i]]);
+            kb_send(hid2ps2[report[i]]);
           }
         }
         
@@ -486,16 +481,16 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
 }
 
 void irq_callback(uint gpio, uint32_t events) {
-  if(gpio == KBCLK && !gpio_get(KBDAT) && !pio_interrupt_get(iokbd, 0)) {
+  if(gpio == KBCLK && !gpio_get(KBDAT) && !pio_interrupt_get(iokb, 0)) {
     printf("IRQ KB  ");
-    pio_sm_drain_tx_fifo(iokbd, txkbd);
-    pio_sm_exec(iokbd, txkbd, pio_encode_jmp(jmpkbd + 2));
+    pio_sm_drain_tx_fifo(iokb, smkb);
+    pio_sm_exec(iokb, smkb, pio_encode_jmp(smkb_jmp + 2));
   }
   
   if(gpio == MSCLK && !gpio_get(MSDAT) && !pio_interrupt_get(ioms, 0)) {
     printf("IRQ MS  ");
-    pio_sm_drain_tx_fifo(ioms, txms);
-    pio_sm_exec(ioms, txms, pio_encode_jmp(jmpms + 2));
+    pio_sm_drain_tx_fifo(ioms, smms);
+    pio_sm_exec(ioms, smms, pio_encode_jmp(smms_jmp + 2));
   }
 }
 
@@ -503,52 +498,27 @@ void main() {
   board_init();
   printf("ps2x2pico-0.6\n");
   
+  smkb = pio_claim_unused_sm(iokb, true);
+  smms = pio_claim_unused_sm(ioms, true);
+  smkb_jmp = pio_add_program(iokb, &ps2dev_program);
+  smms_jmp = pio_add_program(ioms, &ps2dev_program);
+  ps2dev_program_init(iokb, smkb, smkb_jmp, KBCLK, KBDAT);
+  ps2dev_program_init(ioms, smms, smms_jmp, MSCLK, MSDAT);
+  
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
-  pio_gpio_init(iokbd, KBCLK);
-  pio_gpio_init(iokbd, KBDAT);
-  pio_gpio_init(ioms, MSCLK);
-  pio_gpio_init(ioms, MSDAT);
-  
-  jmpkbd = pio_add_program(iokbd, &ps2dev_program);
-  jmpms = pio_add_program(ioms, &ps2dev_program);
-  
-  txkbd = pio_claim_unused_sm(iokbd, true);
-  pio_sm_config c1 = ps2dev_program_get_default_config(jmpkbd);
-  sm_config_set_clkdiv(&c1, 2560);
-  sm_config_set_jmp_pin(&c1, KBCLK);
-  sm_config_set_set_pins(&c1, KBCLK, 1);
-  sm_config_set_sideset_pins(&c1, KBDAT);
-  sm_config_set_out_pins(&c1, KBDAT, 1);
-  sm_config_set_out_shift(&c1, true, true, 11);
-  sm_config_set_in_pins(&c1, KBDAT);
-  sm_config_set_in_shift(&c1, true, true, 9);
-  pio_sm_init(iokbd, txkbd, jmpkbd, &c1);
-  pio_sm_set_enabled(iokbd, txkbd, true);
-  
-  txms = pio_claim_unused_sm(ioms, true);
-  pio_sm_config c2 = ps2dev_program_get_default_config(jmpms);
-  sm_config_set_clkdiv(&c2, 2560);
-  sm_config_set_jmp_pin(&c2, MSCLK);
-  sm_config_set_set_pins(&c2, MSCLK, 1);
-  sm_config_set_sideset_pins(&c2, MSDAT);
-  sm_config_set_out_pins(&c2, MSDAT, 1);
-  sm_config_set_out_shift(&c2, true, true, 11);
-  sm_config_set_in_pins(&c2, MSDAT);
-  sm_config_set_in_shift(&c2, true, true, 9);
-  pio_sm_init(ioms, txms, jmpms, &c2);
-  pio_sm_set_enabled(ioms, txms, true);
   
   gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
   gpio_set_irq_enabled_with_callback(MSCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
+  
   tusb_init();
   
   while(true) {
     tuh_task();
     
-    if(!pio_sm_is_rx_fifo_empty(iokbd, txkbd)) {
-      uint32_t fifo = pio_sm_get(iokbd, txkbd);
+    if(!pio_sm_is_rx_fifo_empty(iokb, smkb)) {
+      uint32_t fifo = pio_sm_get(iokb, smkb);
       printf("fifo %08x ", fifo);
       fifo = fifo >> 23;
       
@@ -558,15 +528,15 @@ void main() {
       }
       
       if(parity != fifo & 0x100) {
-        kbd_send(0xfe);
+        kb_send(0xfe);
       } else {
         printf("got KB %02x  ", (unsigned char)fifo);
-        process_kbd(fifo);
+        process_kb(fifo);
       }
     }
     
-    if(pio_sm_get_rx_fifo_level(ioms, txms)) {
-      uint32_t fifo = pio_sm_get_blocking(ioms, txms);
+    if(pio_sm_get_rx_fifo_level(ioms, smms)) {
+      uint32_t fifo = pio_sm_get_blocking(ioms, smms);
       printf("fifo %08x ", fifo);
       fifo = fifo >> 23;
       
@@ -588,7 +558,7 @@ void main() {
       
       if(repeat) {
         maybe_send_e0(repeat);
-        kbd_send(hid2ps2[repeat]);
+        kb_send(hid2ps2[repeat]);
       }
     }
   }
