@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 17)
 # Pull in Raspberry Pi Pico SDK
 include(pico_sdk_import.cmake)
 
+if (PICO_SDK_VERSION_STRING VERSION_LESS "1.4.1")
+  message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.4.1 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
+endif()
+
 project(ps2x2pico C CXX ASM)
 
 # Initialise the Raspberry Pi Pico SDK
