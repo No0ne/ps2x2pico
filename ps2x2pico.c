@@ -23,18 +23,19 @@
  *
  */
 
-#include "ps2device.pio.h"
+#define DEBUG true
+
+#include "ps2transceiver.h"
 #include "hardware/gpio.h"
 #include "bsp/board.h"
 #include "tusb.h"
+#include <stdlib.h>
 
-#define KBCLK 11
-#define KBDAT 12
+//#define KBCLK 11
+#define KBDAT 11
 #define LVPWR 13
-#define MSCLK 14
-#define MSDAT 15
-
-#define DEBUG true
+#define MSDAT 14
+#define MSCLK 15
 
 uint8_t const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 uint8_t const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
@@ -52,10 +53,10 @@ uint8_t const maparray = sizeof(hid2ps2) / sizeof(uint8_t);
 
 PIO iokb = pio0;
 PIO ioms = pio1;
-uint smkb;
 uint smms;
-uint smkb_jmp;
 uint smms_jmp;
+
+Ps2Transceiver kbd_transceiver;
 
 bool kb_enabled = true;
 uint8_t kb_addr = 0;
@@ -100,25 +101,10 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
   return 0;
 }
 
-uint16_t ps2_frame(uint8_t data) {
-  uint8_t parity = 1;
-  for(uint8_t i = 0; i < 8; i++) {
-    parity = parity ^ (data >> i & 1);
-  }
-  
-  return ((1 << 10) | (parity << 9) | (data << 1)) ^ 0x7ff;
-}
-
 void ms_send(uint8_t data) {
   if(DEBUG) printf("send MS %02x\n", data);
   resend_ms = data;
-  pio_sm_put(ioms, smms, ps2_frame(data));
-}
-
-void kb_send(uint8_t data) {
-  if(DEBUG) printf("send KB %02x\n", data);
-  resend_kb = data;
-  pio_sm_put(iokb, smkb, ps2_frame(data));
+  //  pio_sm_put(ioms, smms, ps2_frame(data));
 }
 
 void maybe_send_e0(uint8_t data) {
@@ -127,7 +113,7 @@ void maybe_send_e0(uint8_t data) {
      data == 0x54 || data == 0x58 ||
      data == 0x65 || data == 0x66 ||
      data >= 0x81) {
-    kb_send(0xe0);
+    sendByte(&kbd_transceiver, 0xe0);
   }
 }
 
@@ -145,13 +131,18 @@ int64_t blink_callback(alarm_id_t id, void *user_data) {
       return 500000;
     } else {
       kb_set_leds(0);
-      kb_send(0xaa);
+      sendByte(&kbd_transceiver, 0xaa);
     }
   }
   return 0;
 }
 
-void process_kb(uint8_t data) {
+void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
+  if (!parityIsCorrect) {
+    sendByte(&kbd_transceiver, 0xfe);
+    return;
+  }
+  
   switch(prev_kb) {
     case 0xed: // CMD: Set LEDs
       prev_kb = 0;
@@ -175,26 +166,27 @@ void process_kb(uint8_t data) {
       switch(data) {
         case 0xff: // CMD: Reset
           kb_enabled = true;
-          blinking = true;
-          add_alarm_in_ms(1, blink_callback, NULL, false);
+          blinking = true;	 
           
-          pio_sm_clear_fifos(iokb, smkb);
-          pio_sm_drain_tx_fifo(iokb, smkb);
-          kb_send(0xfa);
+          //pio_sm_clear_fifos(iokb, smkb_sender);
+          //pio_sm_drain_tx_fifo(iokb, smkb_sender);
+          sendByte(&kbd_transceiver, 0xfa);
+	  
+	  add_alarm_in_ms(20, blink_callback, NULL, false);
         return;
         
         case 0xfe: // CMD: Resend
-          kb_send(resend_kb);
+          sendByte(&kbd_transceiver, resend_kb);
         return;
         
         case 0xee: // CMD: Echo
-          kb_send(0xee);
+          sendByte(&kbd_transceiver, 0xee);
         return;
         
         case 0xf2: // CMD: Identify keyboard
-          kb_send(0xfa);
-          kb_send(0xab);
-          kb_send(0x83);
+          sendByte(&kbd_transceiver, 0xfa);
+          sendByte(&kbd_transceiver, 0xab);
+          sendByte(&kbd_transceiver, 0x83);
         return;
         
         case 0xf3: // CMD: Set typematic rate and delay
@@ -213,11 +205,13 @@ void process_kb(uint8_t data) {
           delay_ms = 250;
           kb_set_leds(0);
         break;
+        case 0:
+          return;
       }
     break;
   }
   
-  kb_send(0xfa);
+  sendByte(&kbd_transceiver, 0xfa);
 }
 
 void process_ms(uint8_t data) {
@@ -246,8 +240,8 @@ void process_ms(uint8_t data) {
       ms_mode = MS_MODE_IDLE;
       ms_rate = 100;
       
-      pio_sm_clear_fifos(ioms, smms);
-      pio_sm_drain_tx_fifo(ioms, smms);
+      //      pio_sm_clear_fifos(ioms, smms);
+      //      pio_sm_drain_tx_fifo(ioms, smms);
       ms_send(0xfa);
       ms_send(0xaa);
       ms_send(ms_type);
@@ -308,8 +302,8 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
       kb_addr = dev_addr;
       kb_inst = instance;
       
-      blinking = true;
-      add_alarm_in_ms(1, blink_callback, NULL, false);
+      //blinking = true;
+      //add_alarm_in_ms(1, blink_callback, NULL, false);
       
       tuh_hid_receive_report(dev_addr, instance);
     break;
@@ -345,13 +339,13 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         for(uint8_t j = 0; j < 8; j++) {
           
           if((rbits & 0x01) != (pbits & 0x01)) {
-            if(j > 2 && j != 5) kb_send(0xe0);
+            if(j > 2 && j != 5) sendByte(&kbd_transceiver, 0xe0);
             
             if(rbits & 0x01) {
-              kb_send(mod2ps2[j]);
+              sendByte(&kbd_transceiver, mod2ps2[j]);
             } else {
-              kb_send(0xf0);
-              kb_send(mod2ps2[j]);
+              sendByte(&kbd_transceiver, 0xf0);
+              sendByte(&kbd_transceiver, mod2ps2[j]);
             }
           }
           
@@ -379,8 +373,8 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             if(prev_rpt[i] == repeat) repeat = 0;
             
             maybe_send_e0(prev_rpt[i]);
-            kb_send(0xf0);
-            kb_send(hid2ps2[prev_rpt[i]]);
+            sendByte(&kbd_transceiver, 0xf0);
+            sendByte(&kbd_transceiver, hid2ps2[prev_rpt[i]]);
           }
         }
         
@@ -398,10 +392,10 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             if(report[i] == 0x48) {
               
               if(report[0] & 0x1 || report[0] & 0x10) {
-                kb_send(0xe0); kb_send(0x7e); kb_send(0xe0); kb_send(0xf0); kb_send(0x7e);
+                sendByte(&kbd_transceiver, 0xe0); sendByte(&kbd_transceiver, 0x7e); sendByte(&kbd_transceiver, 0xe0); sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x7e);
               } else {
-                kb_send(0xe1); kb_send(0x14); kb_send(0x77); kb_send(0xe1);
-                kb_send(0xf0); kb_send(0x14); kb_send(0xf0); kb_send(0x77);
+                sendByte(&kbd_transceiver, 0xe1); sendByte(&kbd_transceiver, 0x14); sendByte(&kbd_transceiver, 0x77); sendByte(&kbd_transceiver, 0xe1);
+                sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x14); sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x77);
               }
               
               continue;
@@ -412,7 +406,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
             
             maybe_send_e0(report[i]);
-            kb_send(hid2ps2[report[i]]);
+            sendByte(&kbd_transceiver, hid2ps2[report[i]]);
           }
         }
         
@@ -473,82 +467,31 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   
 }
 
-void check_fifo(PIO pio, uint sm, bool channel) {
-  if(!pio_sm_is_rx_fifo_empty(pio, sm)) {
-    uint32_t fifo = pio_sm_get(pio, sm);
-    if(DEBUG) printf("fifo %08x ", fifo);
-    fifo = fifo >> 23;
-    
-    uint8_t parity = 1;
-    for(uint8_t i = 0; i < 8; i++) {
-      parity = parity ^ (fifo >> i & 1);
-    }
-    
-    if(parity != fifo & 0x100) {
-      if(channel) {
-        kb_send(0xfe);
-      } else {
-        ms_send(0xfe);
-      }
-    } else {
-      if(channel) {
-        if(DEBUG) printf("got KB %02x  ", (uint8_t)fifo);
-        process_kb(fifo);
-      } else {
-        if(DEBUG) printf("got MS %02x  ", (uint8_t)fifo);
-        process_ms(fifo);
-      }
-    }
-  }
-}
-
-void irq_callback(uint gpio, uint32_t events) {
-  if(gpio == KBCLK && !gpio_get(KBDAT) && !pio_interrupt_get(iokb, 0)) {
-    if(DEBUG) printf("IRQ KB  ");
-    pio_sm_drain_tx_fifo(iokb, smkb);
-    pio_sm_exec(iokb, smkb, pio_encode_jmp(smkb_jmp + 2));
-  }
-  
-  if(gpio == MSCLK && !gpio_get(MSDAT) && !pio_interrupt_get(ioms, 0)) {
-    if(DEBUG) printf("IRQ MS  ");
-    pio_sm_drain_tx_fifo(ioms, smms);
-    pio_sm_exec(ioms, smms, pio_encode_jmp(smms_jmp + 2));
-  }
-}
-
 void main() {
   board_init();
   printf("ps2x2pico-0.6 DEBUG=%s\n", DEBUG ? "true" : "false");
-  
-  smkb = pio_claim_unused_sm(iokb, true);
-  smms = pio_claim_unused_sm(ioms, true);
-  smkb_jmp = pio_add_program(iokb, &ps2dev_program);
-  smms_jmp = pio_add_program(ioms, &ps2dev_program);
-  ps2dev_program_init(iokb, smkb, smkb_jmp, KBCLK, KBDAT);
-  ps2dev_program_init(ioms, smms, smms_jmp, MSCLK, MSDAT);
+  // Initialize the output queue.
+  initializePs2Transceiver(&kbd_transceiver, iokb, KBDAT, &kbdMessageReceived); 
   
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
-  
-  gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
-  gpio_set_irq_enabled_with_callback(MSCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
-  
+    
   tusb_init();
   
   while(true) {
     tuh_task();
-    
-    check_fifo(iokb, smkb, true);
-    check_fifo(ioms, smms, false);
-    
+
+    runLoopIteration(&kbd_transceiver);
+        
     if(repeating) {
       repeating = false;
       
       if(repeat) {
         maybe_send_e0(repeat);
-        kb_send(hid2ps2[repeat]);
+        sendByte(&kbd_transceiver, hid2ps2[repeat]);
       }
     }
   }
 }
+

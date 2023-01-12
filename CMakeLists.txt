@@ -15,7 +15,7 @@ project(ps2x2pico C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-add_executable(ps2x2pico ps2x2pico.c)
+add_executable(ps2x2pico ps2x2pico.c ps2transceiver.c)
 
 pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/ps2device.pio)
 
