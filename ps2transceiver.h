@@ -38,12 +38,12 @@ void runLoopIteration(Ps2Transceiver* context);
 void resumeSending(Ps2Transceiver* context);
 
 /*
- Enesure that sending is paused and no messages are in flight prior to calling.
+ Requies: sending is paused and no messages are in flight prior to calling.
  */
 void clearOutputBuffer(Ps2Transceiver* context);
 
 /*
- Enesure that sending is paused and no messages are in flight prior to calling.
+ Requires: sending is paused and no messages are in flight prior to calling.
  */
 void prioritySendBytes(Ps2Transceiver* context, uint8_t* toSend, uint count);
 

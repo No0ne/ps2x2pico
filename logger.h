@@ -3,7 +3,7 @@
 #include <stdio.h>
 
 #ifndef DEBUG
-#define DEBUG 1
+#define DEBUG 0
 #endif
 
 #ifndef TRACE

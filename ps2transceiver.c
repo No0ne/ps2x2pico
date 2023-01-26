@@ -108,9 +108,15 @@ void resumeSending(Ps2Transceiver* context) {
 
 void clearOutputBuffer(Ps2Transceiver* context) {
   int curId;
+  // Move all fo the queueIds to the free queue.
   while (queue_try_remove(&context->outputBuffer, &curId)) {
     queue_add_blocking(&context->freeMessages, &curId);
   }
+
+  // Clear transmission buffers.
+  pio_sm_clear_fifos(context->assignedPio, context->stateMachineID);
+  pio_sm_drain_tx_fifo(context->assignedPio, context->stateMachineID);
+
 }
 
 void prioritySendBytes(Ps2Transceiver* context, uint8_t* toSend, uint count) {
@@ -160,6 +166,7 @@ void handleSendComplete(Ps2Transceiver* context) {
   if (queue_try_peek(&context->outputBuffer, &curId)) {
     MessageToSend *cur = &context->outputMessageStore[curId];
     cur->sentCount++;
+    // If we have send all of the bytes from this message, release the buffer.
     if (cur->sentCount == cur->count) {
       queue_remove_blocking(&context->outputBuffer, &curId);
       queue_add_blocking(&context->freeMessages, &curId);

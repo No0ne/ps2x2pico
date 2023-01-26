@@ -19,6 +19,8 @@ add_executable(ps2x2pico ps2x2pico.c ps2transceiver.c)
 
 pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/ps2device.pio)
 
+add_compile_definitions(DEBUG=1)
+
 pico_set_program_name(ps2x2pico "ps2x2pico")
 pico_set_program_version(ps2x2pico "0.5")
 

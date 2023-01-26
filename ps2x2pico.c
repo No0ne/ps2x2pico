@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,19 +24,15 @@
  *
  */
 
-#define DEBUG true
-
 #include "ps2transceiver.h"
 #include "hardware/gpio.h"
 #include "bsp/board.h"
 #include "tusb.h"
 #include <stdlib.h>
 
-//#define KBCLK 11
 #define KBDAT 11
 #define LVPWR 13
 #define MSDAT 14
-#define MSCLK 15
 
 uint8_t const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 uint8_t const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
@@ -53,10 +50,9 @@ uint8_t const maparray = sizeof(hid2ps2) / sizeof(uint8_t);
 
 PIO iokb = pio0;
 PIO ioms = pio1;
-uint smms;
-uint smms_jmp;
 
 Ps2Transceiver kbd_transceiver;
+Ps2Transceiver ms_transceiver;
 
 bool kb_enabled = true;
 uint8_t kb_addr = 0;
@@ -101,11 +97,6 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
   return 0;
 }
 
-void ms_send(uint8_t data) {
-  if(DEBUG) printf("send MS %02x\n", data);
-  resend_ms = data;
-  //  pio_sm_put(ioms, smms, ps2_frame(data));
-}
 
 void maybe_send_e0(uint8_t data) {
   if(data == 0x46 ||
@@ -167,11 +158,9 @@ void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
         case 0xff: // CMD: Reset
           kb_enabled = true;
           blinking = true;	 
-          
-          //pio_sm_clear_fifos(iokb, smkb_sender);
-          //pio_sm_drain_tx_fifo(iokb, smkb_sender);
-          sendByte(&kbd_transceiver, 0xfa);
-	  
+
+	  clearOutputBuffer(&kbd_transceiver);
+          sendByte(&kbd_transceiver, 0xfa);	  
 	  add_alarm_in_ms(20, blink_callback, NULL, false);
         return;
         
@@ -183,11 +172,14 @@ void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
           sendByte(&kbd_transceiver, 0xee);
         return;
         
-        case 0xf2: // CMD: Identify keyboard
-          sendByte(&kbd_transceiver, 0xfa);
-          sendByte(&kbd_transceiver, 0xab);
-          sendByte(&kbd_transceiver, 0x83);
-        return;
+        case 0xf2: {// CMD: Identify keyboard
+	  uint8_t sending[] = {0xfa, 0xab, 0x83};
+	  sendBytes(&kbd_transceiver, sending, 3);
+	  //          sendByte(&kbd_transceiver, 0xfa);
+          //sendByte(&kbd_transceiver, 0xab);
+          //sendByte(&kbd_transceiver, 0x83);
+          return;
+        }
         
         case 0xf3: // CMD: Set typematic rate and delay
         case 0xed: // CMD: Set LEDs
@@ -212,13 +204,21 @@ void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
   }
   
   sendByte(&kbd_transceiver, 0xfa);
+  // In future, this may need to move to another location depending upon the command received.
+  // If this feature ends up not being needed, it can be disabled.
+  resumeSending(&kbd_transceiver);
 }
 
-void process_ms(uint8_t data) {
+void msMessageReceived(uint8_t data, bool parityIsCorrect) {
+  if (!parityIsCorrect) {
+    sendByte(&ms_transceiver, 0xfe);
+    return;
+  }
+  
   if(ms_input_mode == MS_INPUT_SET_RATE) {
     ms_rate = data;  // TODO... need to actually honor the sample rate!
     ms_input_mode = MS_INPUT_CMD;
-    ms_send(0xfa);
+    sendByte(&ms_transceiver, 0xfa);
 
     ms_magic_seq = (ms_magic_seq << 8) | data;
     if(ms_type == MS_TYPE_STANDARD && ms_magic_seq == 0xc86450) {
@@ -239,12 +239,11 @@ void process_ms(uint8_t data) {
       ms_type = MS_TYPE_STANDARD;
       ms_mode = MS_MODE_IDLE;
       ms_rate = 100;
-      
-      //      pio_sm_clear_fifos(ioms, smms);
-      //      pio_sm_drain_tx_fifo(ioms, smms);
-      ms_send(0xfa);
-      ms_send(0xaa);
-      ms_send(ms_type);
+
+      clearOutputBuffer(&ms_transceiver);
+      sendByte(&ms_transceiver, 0xfa);
+      sendByte(&ms_transceiver, 0xaa);
+      sendByte(&ms_transceiver, ms_type);
     return;
 
     case 0xf6: // CMD: Set Defaults
@@ -253,29 +252,29 @@ void process_ms(uint8_t data) {
     case 0xf5: // CMD: Disable Data Reporting
     case 0xea: // CMD: Set Stream Mode
       ms_mode = MS_MODE_IDLE;
-      ms_send(0xfa);
+      sendByte(&ms_transceiver, 0xfa);
     return;
 
     case 0xf4: // CMD: Enable Data Reporting
       ms_mode = MS_MODE_STREAMING;
-      ms_send(0xfa);
+      sendByte(&ms_transceiver, 0xfa);
     return;
 
     case 0xf3: // CMD: Set Sample Rate
       ms_input_mode = MS_INPUT_SET_RATE;
-      ms_send(0xfa);
+      sendByte(&ms_transceiver, 0xfa);
     return;
 
     case 0xf2: // CMD: Get Device ID
-      ms_send(0xfa);
-      ms_send(ms_type);
+      sendByte(&ms_transceiver, 0xfa);
+      sendByte(&ms_transceiver, ms_type);
     return;
 
     case 0xe9: // CMD: Status Request
-      ms_send(0xfa);
-      ms_send(0x00); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
-      ms_send(0x02); // Resolution
-      ms_send(ms_rate); // Sample Rate
+      sendByte(&ms_transceiver, 0xfa);
+      sendByte(&ms_transceiver, 0x00); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
+      sendByte(&ms_transceiver, 0x02); // Resolution
+      sendByte(&ms_transceiver, ms_rate); // Sample Rate
     return;
 
 // TODO: Implement (more of) these?
@@ -289,7 +288,10 @@ void process_ms(uint8_t data) {
 //    case 0xe6: // CMD: Set Scaling 1:1
   }
 
-  ms_send(0xfa);
+  sendByte(&ms_transceiver, 0xfa);
+  // In future, this may need to move to another location depending upon the command received.
+  // If this feature ends up not being needed, it can be disabled.
+  resumeSending(&kbd_transceiver);
 }
 
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
@@ -311,7 +313,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
     case HID_ITF_PROTOCOL_MOUSE:
       if(DEBUG) printf("HID Interface Protocol = Mouse\n");
       //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
-      ms_send(0xaa);
+      sendByte(&ms_transceiver, 0xaa);
       tuh_hid_receive_report(dev_addr, instance);
     break;
   }
@@ -444,9 +446,9 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         y = 0x100 - y;
       }
       
-      ms_send(s);
-      ms_send(x);
-      ms_send(y);
+      sendByte(&ms_transceiver, s);
+      sendByte(&ms_transceiver, x);
+      sendByte(&ms_transceiver, y);
       
       if (ms_type == MS_TYPE_WHEEL_3 || ms_type == MS_TYPE_WHEEL_5) {
         // TODO: add proper support for buttons 4 & 5
@@ -457,7 +459,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           z = 0x100 - z;
         }
         
-        ms_send(z);
+        sendByte(&ms_transceiver, z);
       }
       
       tuh_hid_receive_report(dev_addr, instance);
@@ -471,7 +473,8 @@ void main() {
   board_init();
   printf("ps2x2pico-0.6 DEBUG=%s\n", DEBUG ? "true" : "false");
   // Initialize the output queue.
-  initializePs2Transceiver(&kbd_transceiver, iokb, KBDAT, &kbdMessageReceived); 
+  initializePs2Transceiver(&kbd_transceiver, iokb, KBDAT, &kbdMessageReceived);
+  initializePs2Transceiver(&ms_transceiver, ioms, MSDAT, &msMessageReceived);
   
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
@@ -481,8 +484,9 @@ void main() {
   
   while(true) {
     tuh_task();
-
+    // Process updates for the keyboard and mouse.
     runLoopIteration(&kbd_transceiver);
+    runLoopIteration(&ms_transceiver);
         
     if(repeating) {
       repeating = false;

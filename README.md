@@ -15,12 +15,12 @@ Keyboard only variant: https://github.com/No0ne/ps2pico
 ```
                    _________________
                   |                 |
-Pico GPIO11 ______| LV1         HV1 |______ PS/2 keyboard clock
-Pico GPIO12 ______| LV2         HV2 |______ PS/2 keyboard data
+Pico GPIO12 ______| LV1         HV1 |______ PS/2 keyboard clock
+Pico GPIO11 ______| LV2         HV2 |______ PS/2 keyboard data
 Pico GPIO13 ______| LV          HV  |______ PS/2 5V + Pico VBUS
 Pico    GND ______| GND         GND |______ PS/2 GND
-Pico GPIO14 ______| LV3         HV3 |______ PS/2 mouse clock
-Pico GPIO15 ______| LV4         HV4 |______ PS/2 mouse data
+Pico GPIO15 ______| LV3         HV3 |______ PS/2 mouse clock
+Pico GPIO14 ______| LV4         HV4 |______ PS/2 mouse data
                   |_________________|
 ```
 
@@ -32,6 +32,12 @@ mkdir build
 cd build
 cmake ..
 make
+```
+
+# Debug Builds
+Debug logging is controlled by changing the CMakeLists.txt line. Changing the '=1' to an '=0' will remove debug messages from the build. Debug messages are written to the serial output of the Pico.
+```
+add_compile_definitions(DEBUG=1)
 ```
 
 # Resources
