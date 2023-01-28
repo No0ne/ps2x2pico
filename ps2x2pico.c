@@ -175,9 +175,6 @@ void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
         case 0xf2: {// CMD: Identify keyboard
 	  uint8_t sending[] = {0xfa, 0xab, 0x83};
 	  sendBytes(&kbd_transceiver, sending, 3);
-	  //          sendByte(&kbd_transceiver, 0xfa);
-          //sendByte(&kbd_transceiver, 0xab);
-          //sendByte(&kbd_transceiver, 0x83);
           return;
         }
         
