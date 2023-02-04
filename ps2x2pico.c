@@ -559,7 +559,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         if(report[3] >> 7) {
           z = 0x8 - z;
         } else if(z) {
-          z = 0x100 - z;
+          z = 0x10 - z;
         }
         
         ms_send(z);
