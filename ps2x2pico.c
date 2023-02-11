@@ -532,7 +532,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
       
       board_led_write(1);
       
-      uint8_t s = report[0] + 8;
+      uint8_t s = (report[0] & 7) + 8;
       uint8_t x = report[1] & 0x7f;
       uint8_t y = report[2] & 0x7f;
       uint8_t z = report[3] & 7;
@@ -554,14 +554,22 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
       ms_send(y);
       
       if (ms_type == MS_TYPE_WHEEL_3 || ms_type == MS_TYPE_WHEEL_5) {
-        // TODO: add proper support for buttons 4 & 5
-        
         if(report[3] >> 7) {
           z = 0x8 - z;
         } else if(z) {
-          z = 0x100 - z;
+          z = 0x10 - z;
         }
-        
+
+        if (ms_type == MS_TYPE_WHEEL_5) {
+          if (report[0] & 0x8) {
+            z += 0x10;
+          }
+
+          if (report[0] & 0x10) {
+            z += 0x20;
+          }
+        }
+
         ms_send(z);
       }
       
