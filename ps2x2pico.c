@@ -321,7 +321,10 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 }
 
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
+  uint8_t prev_rpt_snapshot[sizeof(prev_rpt)];
   
+  memcpy(prev_rpt_snapshot, prev_rpt, sizeof(prev_rpt_snapshot));
+
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
       if(!kb_enabled || report[1] != 0) {
@@ -353,7 +356,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           
         }
         
-        prev_rpt[0] = report[0];
+        prev_rpt_snapshot[0] = report[0];
       }
       
       for(uint8_t i = 2; i < 8; i++) {
@@ -409,9 +412,11 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           }
         }
         
-        prev_rpt[i] = report[i];
+        prev_rpt_snapshot[i] = report[i];
       }
       
+      memcpy(prev_rpt, prev_rpt_snapshot,  sizeof(prev_rpt));
+
       tuh_hid_receive_report(dev_addr, instance);
       board_led_write(0);
     break;
@@ -426,7 +431,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
       
       board_led_write(1);
       
-      uint8_t s = report[0] + 8;
+      uint8_t s = (report[0] & 7) + 8;
       uint8_t x = report[1] & 0x7f;
       uint8_t y = report[2] & 0x7f;
       uint8_t z = report[3] & 7;
@@ -448,14 +453,22 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
       sendByte(&ms_transceiver, y);
       
       if (ms_type == MS_TYPE_WHEEL_3 || ms_type == MS_TYPE_WHEEL_5) {
-        // TODO: add proper support for buttons 4 & 5
-        
         if(report[3] >> 7) {
           z = 0x8 - z;
         } else if(z) {
-          z = 0x100 - z;
+          z = 0x10 - z;
         }
-        
+
+        if (ms_type == MS_TYPE_WHEEL_5) {
+          if (report[0] & 0x8) {
+            z += 0x10;
+          }
+
+          if (report[0] & 0x10) {
+            z += 0x20;
+          }
+        }
+
         sendByte(&ms_transceiver, z);
       }
       
