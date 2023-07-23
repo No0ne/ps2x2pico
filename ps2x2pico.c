@@ -56,6 +56,7 @@ bool blinking = false;
 bool receive_kbd = false;
 bool receive_ms = false;
 bool repeating = false;
+bool repeatmod = false;
 uint32_t repeat_us = 35000;
 uint16_t delay_ms = 250;
 alarm_id_t repeater;
@@ -163,7 +164,7 @@ void kbd_send(uint8_t data) {
 
 void maybe_send_e0(uint8_t data) {
   if(data == 0x46 ||
-     data >= 0x48 && data <= 0x52 ||
+     data >= 0x49 && data <= 0x52 ||
      data == 0x54 || data == 0x58 ||
      data == 0x65 || data == 0x66 ||
      data >= 0x81) {
@@ -216,6 +217,7 @@ void process_kbd(uint8_t data) {
           kbd_send(0xfa);
           
           kbd_enabled = true;
+          repeat = 0;
           blinking = true;
           add_alarm_in_ms(1, blink_callback, NULL, false);
           
@@ -407,6 +409,7 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
       kbd_addr = dev_addr;
       kbd_inst = instance;
       
+      repeat = 0;
       blinking = true;
       add_alarm_in_ms(1, blink_callback, NULL, false);
       
@@ -450,8 +453,16 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             if(j > 2 && j != 5) kbd_send(0xe0);
             
             if(rbits & 0x01) {
+              repeat = j + 1;
+              repeatmod = true;
+              
+              if(repeater) cancel_alarm(repeater);
+              repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
+              
               kbd_send(mod2ps2[j]);
             } else {
+              if(j + 1 == repeat && repeatmod) repeat = 0;
+              
               kbd_send(0xf0);
               kbd_send(mod2ps2[j]);
             }
@@ -478,7 +489,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           
           if(brk && report[i] < maparray) {
             if(prev_rpt[i] == 0x48) continue;
-            if(prev_rpt[i] == repeat) repeat = 0;
+            if(prev_rpt[i] == repeat && !repeatmod) repeat = 0;
             
             maybe_send_e0(prev_rpt[i]);
             kbd_send(0xf0);
@@ -497,19 +508,21 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           }
           
           if(make && report[i] < maparray) {
+            repeat = 0;
+            
             if(report[i] == 0x48) {
-              
               if(report[0] & 0x1 || report[0] & 0x10) {
                 kbd_send(0xe0); kbd_send(0x7e); kbd_send(0xe0); kbd_send(0xf0); kbd_send(0x7e);
               } else {
                 kbd_send(0xe1); kbd_send(0x14); kbd_send(0x77); kbd_send(0xe1);
                 kbd_send(0xf0); kbd_send(0x14); kbd_send(0xf0); kbd_send(0x77);
               }
-              
               continue;
             }
             
             repeat = report[i];
+            repeatmod = false;
+            
             if(repeater) cancel_alarm(repeater);
             repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
             
@@ -601,7 +614,7 @@ void irq_callback(uint gpio, uint32_t events) {
 
 void main() {
   board_init();
-  printf("ps2x2pico-0.5\n");
+  printf("ps2x2pico-0.6\n");
   
   gpio_init(KBCLK);
   gpio_init(KBDAT);
@@ -622,8 +635,13 @@ void main() {
       repeating = false;
       
       if(repeat) {
-        maybe_send_e0(repeat);
-        kbd_send(hid2ps2[repeat]);
+        if(repeatmod) {
+          if(repeat > 3 && repeat != 6) kbd_send(0xe0);
+          kbd_send(mod2ps2[repeat - 1]);
+        } else {
+          maybe_send_e0(repeat);
+          kbd_send(hid2ps2[repeat]);
+        }
       }
     }
     
