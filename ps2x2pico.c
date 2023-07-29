@@ -60,6 +60,7 @@ uint8_t kb_inst = 0;
 
 bool blinking = false;
 bool repeating = false;
+bool repeatmod = false;
 uint32_t repeat_us = 35000;
 uint16_t delay_ms = 250;
 alarm_id_t repeater;
@@ -100,7 +101,7 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
 
 void maybe_send_e0(uint8_t data) {
   if(data == 0x46 ||
-     data >= 0x48 && data <= 0x52 ||
+     data >= 0x49 && data <= 0x52 ||
      data == 0x54 || data == 0x58 ||
      data == 0x65 || data == 0x66 ||
      data >= 0x81) {
@@ -156,12 +157,16 @@ void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
     default:
       switch(data) {
         case 0xff: // CMD: Reset
-          kb_enabled = true;
-          blinking = true;	 
+          kbd_send(0xfa);
+          
+          kbd_enabled = true;
+          repeat = 0;
+          blinking = true;
+          add_alarm_in_ms(20, blink_callback, NULL, false);
 
-	  clearOutputBuffer(&kbd_transceiver);
-          sendByte(&kbd_transceiver, 0xfa);	  
-	  add_alarm_in_ms(20, blink_callback, NULL, false);
+          clearOutputBuffer(&kbd_transceiver);
+          sendByte(&kbd_transceiver, 0xfa);
+
         return;
         
         case 0xfe: // CMD: Resend
@@ -301,8 +306,9 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
       kb_addr = dev_addr;
       kb_inst = instance;
       
-      //blinking = true;
-      //add_alarm_in_ms(1, blink_callback, NULL, false);
+      repeat = 0;
+      blinking = true;
+      add_alarm_in_ms(1, blink_callback, NULL, false);
       
       tuh_hid_receive_report(dev_addr, instance);
     break;
@@ -321,10 +327,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 }
 
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
-  uint8_t prev_rpt_snapshot[sizeof(prev_rpt)];
   
-  memcpy(prev_rpt_snapshot, prev_rpt, sizeof(prev_rpt_snapshot));
-
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
       if(!kb_enabled || report[1] != 0) {
@@ -344,8 +347,16 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             if(j > 2 && j != 5) sendByte(&kbd_transceiver, 0xe0);
             
             if(rbits & 0x01) {
+              repeat = j + 1;
+              repeatmod = true;
+              
+              if(repeater) cancel_alarm(repeater);
+              repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
+              
               sendByte(&kbd_transceiver, mod2ps2[j]);
             } else {
+              if(j + 1 == repeat && repeatmod) repeat = 0;
+              
               sendByte(&kbd_transceiver, 0xf0);
               sendByte(&kbd_transceiver, mod2ps2[j]);
             }
@@ -355,8 +366,6 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           pbits = pbits >> 1;
           
         }
-        
-        prev_rpt_snapshot[0] = report[0];
       }
       
       for(uint8_t i = 2; i < 8; i++) {
@@ -372,7 +381,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           
           if(brk && report[i] < maparray) {
             if(prev_rpt[i] == 0x48) continue;
-            if(prev_rpt[i] == repeat) repeat = 0;
+            if(prev_rpt[i] == repeat && !repeatmod) repeat = 0;
             
             maybe_send_e0(prev_rpt[i]);
             sendByte(&kbd_transceiver, 0xf0);
@@ -391,19 +400,21 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           }
           
           if(make && report[i] < maparray) {
+            repeat = 0;
+            
             if(report[i] == 0x48) {
-              
               if(report[0] & 0x1 || report[0] & 0x10) {
                 sendByte(&kbd_transceiver, 0xe0); sendByte(&kbd_transceiver, 0x7e); sendByte(&kbd_transceiver, 0xe0); sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x7e);
               } else {
                 sendByte(&kbd_transceiver, 0xe1); sendByte(&kbd_transceiver, 0x14); sendByte(&kbd_transceiver, 0x77); sendByte(&kbd_transceiver, 0xe1);
                 sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x14); sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x77);
               }
-              
               continue;
             }
             
             repeat = report[i];
+            repeatmod = false;
+            
             if(repeater) cancel_alarm(repeater);
             repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
             
@@ -411,12 +422,9 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             sendByte(&kbd_transceiver, hid2ps2[report[i]]);
           }
         }
-        
-        prev_rpt_snapshot[i] = report[i];
       }
       
-      memcpy(prev_rpt, prev_rpt_snapshot,  sizeof(prev_rpt));
-
+      memcpy(prev_rpt, report, sizeof(prev_rpt));
       tuh_hid_receive_report(dev_addr, instance);
       board_led_write(0);
     break;
@@ -502,8 +510,13 @@ void main() {
       repeating = false;
       
       if(repeat) {
-        maybe_send_e0(repeat);
-        sendByte(&kbd_transceiver, hid2ps2[repeat]);
+        if(repeatmod) {
+          if(repeat > 3 && repeat != 6) kbd_send(0xe0);
+          sendByte(&kbd_transceiver, mod2ps2[repeat - 1]);
+        } else {
+          maybe_send_e0(repeat);
+          sendByte(&kbd_transceiver, hid2ps2[repeat]);
+        }
       }
     }
   }
