@@ -429,10 +429,7 @@ void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
 }
 
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
-  uint8_t prev_rpt_snapshot[sizeof(prev_rpt)];
   
-  memcpy(prev_rpt_snapshot, prev_rpt, sizeof(prev_rpt_snapshot));
-
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
       
@@ -472,8 +469,6 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           pbits = pbits >> 1;
           
         }
-        
-        prev_rpt_snapshot[0] = report[0];
       }
       
       for(uint8_t i = 2; i < 8; i++) {
@@ -530,12 +525,9 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             kbd_send(hid2ps2[report[i]]);
           }
         }
-        
-        prev_rpt_snapshot[i] = report[i];
       }
       
-      memcpy(prev_rpt, prev_rpt_snapshot,  sizeof(prev_rpt));
-
+      memcpy(prev_rpt, report, sizeof(prev_rpt));
       tuh_hid_receive_report(dev_addr, instance);
       board_led_write(0);
     break;
