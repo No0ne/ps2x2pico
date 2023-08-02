@@ -2,6 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,15 +24,15 @@
  *
  */
 
+#include "ps2transceiver.h"
 #include "hardware/gpio.h"
 #include "bsp/board.h"
 #include "tusb.h"
+#include <stdlib.h>
 
-#define KBCLK 11
-#define KBDAT 12
+#define KBDAT 11
 #define LVPWR 13
-#define MSCLK 14
-#define MSDAT 15
+#define MSDAT 14
 
 uint8_t const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 uint8_t const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
@@ -47,14 +48,17 @@ uint8_t const hid2ps2[] = {
 };
 uint8_t const maparray = sizeof(hid2ps2) / sizeof(uint8_t);
 
-bool irq_enabled = true;
-bool kbd_enabled = true;
-uint8_t kbd_addr = 0;
-uint8_t kbd_inst = 0;
+PIO iokb = pio0;
+PIO ioms = pio1;
+
+Ps2Transceiver kbd_transceiver;
+Ps2Transceiver ms_transceiver;
+
+bool kb_enabled = true;
+uint8_t kb_addr = 0;
+uint8_t kb_inst = 0;
 
 bool blinking = false;
-bool receive_kbd = false;
-bool receive_ms = false;
 bool repeating = false;
 bool repeatmod = false;
 uint32_t repeat_us = 35000;
@@ -62,8 +66,8 @@ uint16_t delay_ms = 250;
 alarm_id_t repeater;
 
 uint8_t prev_rpt[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
-uint8_t prev_kbd = 0;
-uint8_t resend_kbd = 0;
+uint8_t prev_kb = 0;
+uint8_t resend_kb = 0;
 uint8_t resend_ms = 0;
 uint8_t repeat = 0;
 uint8_t leds = 0;
@@ -94,73 +98,6 @@ int64_t repeat_callback(alarm_id_t id, void *user_data) {
   return 0;
 }
 
-void ps2_cycle_clock(uint8_t clkout) {
-  sleep_us(20);
-  gpio_put(clkout, 0);
-  sleep_us(40);
-  gpio_put(clkout, 1);
-  sleep_us(20);
-}
-
-void ps2_set_bit(bool bit, uint8_t clkout, uint8_t datout) {
-  gpio_put(datout, bit);
-  ps2_cycle_clock(clkout);
-}
-
-void ps2_send(uint8_t data, bool channel) {
-  uint8_t clkout = channel ? KBCLK : MSCLK;
-  uint8_t datout = channel ? KBDAT : MSDAT;
-  
-  uint8_t timeout = 10;
-  sleep_ms(1);
-  
-  while(timeout) {
-    if(gpio_get(clkout) && gpio_get(datout)) {
-      
-      if(channel) {
-        resend_kbd = data;
-      } else {
-        resend_ms = data;
-      }
-      
-      uint8_t parity = 1;
-      irq_enabled = false;
-      
-      gpio_set_dir(clkout, GPIO_OUT);
-      gpio_set_dir(datout, GPIO_OUT);
-      ps2_set_bit(0, clkout, datout);
-      
-      for(uint8_t i = 0; i < 8; i++) {
-        ps2_set_bit(data & 0x01, clkout, datout);
-        parity = parity ^ (data & 0x01);
-        data = data >> 1;
-      }
-      
-      ps2_set_bit(parity, clkout, datout);
-      ps2_set_bit(1, clkout, datout);
-      
-      gpio_set_dir(clkout, GPIO_IN);
-      gpio_set_dir(datout, GPIO_IN);
-      
-      irq_enabled = true;
-      return;
-      
-    }
-    
-    timeout--;
-    sleep_ms(8);
-  }
-}
-
-void ms_send(uint8_t data) {
-  printf("send MS %02x\n", data);
-  ps2_send(data, false);
-}
-
-void kbd_send(uint8_t data) {
-  printf("send KB %02x\n", data);
-  ps2_send(data, true);
-}
 
 void maybe_send_e0(uint8_t data) {
   if(data == 0x46 ||
@@ -168,38 +105,44 @@ void maybe_send_e0(uint8_t data) {
      data == 0x54 || data == 0x58 ||
      data == 0x65 || data == 0x66 ||
      data >= 0x81) {
-    ps2_send(0xe0, true);
+    sendByte(&kbd_transceiver, 0xe0);
   }
 }
 
-void kbd_set_leds(uint8_t data) {
+void kb_set_leds(uint8_t data) {
   if(data > 7) data = 0;
   leds = led2ps2[data];
-  tuh_hid_set_report(kbd_addr, kbd_inst, 0, HID_REPORT_TYPE_OUTPUT, &leds, sizeof(leds));
+  tuh_hid_set_report(kb_addr, kb_inst, 0, HID_REPORT_TYPE_OUTPUT, &leds, sizeof(leds));
 }
 
 int64_t blink_callback(alarm_id_t id, void *user_data) {
-  if(kbd_addr) {
+  if(kb_addr) {
     if(blinking) {
-      kbd_set_leds(7);
+      kb_set_leds(7);
       blinking = false;
       return 500000;
     } else {
-      kbd_set_leds(0);
+      kb_set_leds(0);
+      sendByte(&kbd_transceiver, 0xaa);
     }
   }
   return 0;
 }
 
-void process_kbd(uint8_t data) {
-  switch(prev_kbd) {
+void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
+  if (!parityIsCorrect) {
+    sendByte(&kbd_transceiver, 0xfe);
+    return;
+  }
+  
+  switch(prev_kb) {
     case 0xed: // CMD: Set LEDs
-      prev_kbd = 0;
-      kbd_set_leds(data);
+      prev_kb = 0;
+      kb_set_leds(data);
     break;
     
     case 0xf3: // CMD: Set typematic rate and delay
-      prev_kbd = 0;
+      prev_kb = 0;
       repeat_us = data & 0x1f;
       delay_ms = data & 0x60;
       
@@ -214,65 +157,70 @@ void process_kbd(uint8_t data) {
     default:
       switch(data) {
         case 0xff: // CMD: Reset
-          kbd_send(0xfa);
+          sendByte(&kbd_transceiver, 0xfa);
           
-          kbd_enabled = true;
+          kb_enabled = true;
           repeat = 0;
           blinking = true;
-          add_alarm_in_ms(1, blink_callback, NULL, false);
-          
-          sleep_ms(16);
-          kbd_send(0xaa);
-          
-          return;
-        break;
+          add_alarm_in_ms(20, blink_callback, NULL, false);
+
+          clearOutputBuffer(&kbd_transceiver);
+          sendByte(&kbd_transceiver, 0xfa);
+
+        return;
         
         case 0xfe: // CMD: Resend
-          kbd_send(resend_kbd);
-          return;
-        break;
+          sendByte(&kbd_transceiver, resend_kb);
+        return;
         
         case 0xee: // CMD: Echo
-          kbd_send(0xee);
-          return;
-        break;
+          sendByte(&kbd_transceiver, 0xee);
+        return;
         
-        case 0xf2: // CMD: Identify keyboard
-          kbd_send(0xfa);
-          kbd_send(0xab);
-          kbd_send(0x83);
+        case 0xf2: {// CMD: Identify keyboard
+	  uint8_t sending[] = {0xfa, 0xab, 0x83};
+	  sendBytes(&kbd_transceiver, sending, 3);
           return;
-        break;
+        }
         
         case 0xf3: // CMD: Set typematic rate and delay
         case 0xed: // CMD: Set LEDs
-          prev_kbd = data;
+          prev_kb = data;
         break;
         
         case 0xf4: // CMD: Enable scanning
-          kbd_enabled = true;
+          kb_enabled = true;
         break;
         
         case 0xf5: // CMD: Disable scanning, restore default parameters
         case 0xf6: // CMD: Set default parameters
-          kbd_enabled = data == 0xf6;
+          kb_enabled = data == 0xf6;
           repeat_us = 35000;
           delay_ms = 250;
-          kbd_set_leds(0);
+          kb_set_leds(0);
         break;
+        case 0:
+          return;
       }
     break;
   }
   
-  kbd_send(0xfa);
+  sendByte(&kbd_transceiver, 0xfa);
+  // In future, this may need to move to another location depending upon the command received.
+  // If this feature ends up not being needed, it can be disabled.
+  resumeSending(&kbd_transceiver);
 }
 
-void process_ms(uint8_t data) {
-
+void msMessageReceived(uint8_t data, bool parityIsCorrect) {
+  if (!parityIsCorrect) {
+    sendByte(&ms_transceiver, 0xfe);
+    return;
+  }
+  
   if(ms_input_mode == MS_INPUT_SET_RATE) {
     ms_rate = data;  // TODO... need to actually honor the sample rate!
     ms_input_mode = MS_INPUT_CMD;
-    ms_send(0xfa);
+    sendByte(&ms_transceiver, 0xfa);
 
     ms_magic_seq = (ms_magic_seq << 8) | data;
     if(ms_type == MS_TYPE_STANDARD && ms_magic_seq == 0xc86450) {
@@ -280,7 +228,7 @@ void process_ms(uint8_t data) {
     } else if (ms_type == MS_TYPE_WHEEL_3 && ms_magic_seq == 0xc8c850) {
       ms_type = MS_TYPE_WHEEL_5;
     }
-    printf("  MS magic seq: %06x type: %d\n", ms_magic_seq, ms_type);
+    if(DEBUG) printf("  MS magic seq: %06x type: %d\n", ms_magic_seq, ms_type);
     return;
   }
 
@@ -294,9 +242,10 @@ void process_ms(uint8_t data) {
       ms_mode = MS_MODE_IDLE;
       ms_rate = 100;
 
-      ms_send(0xfa);
-      ms_send(0xaa);
-      ms_send(ms_type);
+      clearOutputBuffer(&ms_transceiver);
+      sendByte(&ms_transceiver, 0xfa);
+      sendByte(&ms_transceiver, 0xaa);
+      sendByte(&ms_transceiver, ms_type);
     return;
 
     case 0xf6: // CMD: Set Defaults
@@ -305,29 +254,29 @@ void process_ms(uint8_t data) {
     case 0xf5: // CMD: Disable Data Reporting
     case 0xea: // CMD: Set Stream Mode
       ms_mode = MS_MODE_IDLE;
-      ms_send(0xfa);
+      sendByte(&ms_transceiver, 0xfa);
     return;
 
     case 0xf4: // CMD: Enable Data Reporting
       ms_mode = MS_MODE_STREAMING;
-      ms_send(0xfa);
+      sendByte(&ms_transceiver, 0xfa);
     return;
 
     case 0xf3: // CMD: Set Sample Rate
       ms_input_mode = MS_INPUT_SET_RATE;
-      ms_send(0xfa);
+      sendByte(&ms_transceiver, 0xfa);
     return;
 
     case 0xf2: // CMD: Get Device ID
-      ms_send(0xfa);
-      ms_send(ms_type);
+      sendByte(&ms_transceiver, 0xfa);
+      sendByte(&ms_transceiver, ms_type);
     return;
 
     case 0xe9: // CMD: Status Request
-      ms_send(0xfa);
-      ms_send(0x00); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
-      ms_send(0x02); // Resolution
-      ms_send(ms_rate); // Sample Rate
+      sendByte(&ms_transceiver, 0xfa);
+      sendByte(&ms_transceiver, 0x00); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
+      sendByte(&ms_transceiver, 0x02); // Resolution
+      sendByte(&ms_transceiver, ms_rate); // Sample Rate
     return;
 
 // TODO: Implement (more of) these?
@@ -341,73 +290,21 @@ void process_ms(uint8_t data) {
 //    case 0xe6: // CMD: Set Scaling 1:1
   }
 
-  ms_send(0xfa);
-}
-
-void ps2_receive(bool channel) {
-  uint8_t clkin = channel ? KBCLK : MSCLK;
-  uint8_t datin = channel ? KBDAT : MSDAT;
-
-  irq_enabled = false;
-  board_led_write(1);
-
-  uint8_t bit = 1;
-  uint8_t data = 0;
-  uint8_t parity = 1;
-
-  gpio_set_dir(clkin, GPIO_OUT);
-  ps2_cycle_clock(clkin);
-
-  while(bit) {
-    if(gpio_get(datin)) {
-      data = data | bit;
-      parity = parity ^ 1;
-    } else {
-      parity = parity ^ 0;
-    }
-
-    bit = bit << 1;
-    ps2_cycle_clock(clkin);
-  }
-
-  parity = gpio_get(datin) == parity;
-  ps2_cycle_clock(clkin);
-
-  gpio_set_dir(datin, GPIO_OUT);
-  ps2_set_bit(0, clkin, datin);
-  gpio_set_dir(clkin, GPIO_IN);
-  gpio_set_dir(datin, GPIO_IN);
-
-  irq_enabled = true;
-  board_led_write(0);
-
-  if(!parity) {
-    if(channel) {
-      kbd_send(0xfe);
-    } else {
-      ms_send(0xfe);
-    }
-    return;
-  }
-
-  if(channel) {
-    printf("got KB %02x  ", (unsigned char)data);
-    process_kbd(data);
-  } else {
-    printf("got MS %02x  ", (unsigned char)data);
-    process_ms(data);
-  }
+  sendByte(&ms_transceiver, 0xfa);
+  // In future, this may need to move to another location depending upon the command received.
+  // If this feature ends up not being needed, it can be disabled.
+  resumeSending(&kbd_transceiver);
 }
 
 void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_report, uint16_t desc_len) {
-  printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
+  if(DEBUG) printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
 
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      printf("HID Interface Protocol = Keyboard\n");
+      if(DEBUG) printf("HID Interface Protocol = Keyboard\n");
       
-      kbd_addr = dev_addr;
-      kbd_inst = instance;
+      kb_addr = dev_addr;
+      kb_inst = instance;
       
       repeat = 0;
       blinking = true;
@@ -417,23 +314,23 @@ void tuh_hid_mount_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* desc_re
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
-      printf("HID Interface Protocol = Mouse\n");
+      if(DEBUG) printf("HID Interface Protocol = Mouse\n");
       //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+      sendByte(&ms_transceiver, 0xaa);
       tuh_hid_receive_report(dev_addr, instance);
     break;
   }
 }
 
 void tuh_hid_umount_cb(uint8_t dev_addr, uint8_t instance) {
-  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  if(DEBUG) printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
 }
 
 void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t const* report, uint16_t len) {
   
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      
-      if(!kbd_enabled || report[1] != 0) {
+      if(!kb_enabled || report[1] != 0) {
         tuh_hid_receive_report(dev_addr, instance);
         return;
       }
@@ -447,7 +344,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         for(uint8_t j = 0; j < 8; j++) {
           
           if((rbits & 0x01) != (pbits & 0x01)) {
-            if(j > 2 && j != 5) kbd_send(0xe0);
+            if(j > 2 && j != 5) sendByte(&kbd_transceiver, 0xe0);
             
             if(rbits & 0x01) {
               repeat = j + 1;
@@ -456,12 +353,12 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
               if(repeater) cancel_alarm(repeater);
               repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
               
-              kbd_send(mod2ps2[j]);
+              sendByte(&kbd_transceiver, mod2ps2[j]);
             } else {
               if(j + 1 == repeat && repeatmod) repeat = 0;
               
-              kbd_send(0xf0);
-              kbd_send(mod2ps2[j]);
+              sendByte(&kbd_transceiver, 0xf0);
+              sendByte(&kbd_transceiver, mod2ps2[j]);
             }
           }
           
@@ -487,8 +384,8 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             if(prev_rpt[i] == repeat && !repeatmod) repeat = 0;
             
             maybe_send_e0(prev_rpt[i]);
-            kbd_send(0xf0);
-            kbd_send(hid2ps2[prev_rpt[i]]);
+            sendByte(&kbd_transceiver, 0xf0);
+            sendByte(&kbd_transceiver, hid2ps2[prev_rpt[i]]);
           }
         }
         
@@ -507,10 +404,10 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             
             if(report[i] == 0x48) {
               if(report[0] & 0x1 || report[0] & 0x10) {
-                kbd_send(0xe0); kbd_send(0x7e); kbd_send(0xe0); kbd_send(0xf0); kbd_send(0x7e);
+                sendByte(&kbd_transceiver, 0xe0); sendByte(&kbd_transceiver, 0x7e); sendByte(&kbd_transceiver, 0xe0); sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x7e);
               } else {
-                kbd_send(0xe1); kbd_send(0x14); kbd_send(0x77); kbd_send(0xe1);
-                kbd_send(0xf0); kbd_send(0x14); kbd_send(0xf0); kbd_send(0x77);
+                sendByte(&kbd_transceiver, 0xe1); sendByte(&kbd_transceiver, 0x14); sendByte(&kbd_transceiver, 0x77); sendByte(&kbd_transceiver, 0xe1);
+                sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x14); sendByte(&kbd_transceiver, 0xf0); sendByte(&kbd_transceiver, 0x77);
               }
               continue;
             }
@@ -522,7 +419,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
             repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
             
             maybe_send_e0(report[i]);
-            kbd_send(hid2ps2[report[i]]);
+            sendByte(&kbd_transceiver, hid2ps2[report[i]]);
           }
         }
       }
@@ -533,7 +430,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
-      printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
+      if(DEBUG) printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
       
       if(ms_mode != MS_MODE_STREAMING) {
         tuh_hid_receive_report(dev_addr, instance);
@@ -559,9 +456,9 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
         y = 0x100 - y;
       }
       
-      ms_send(s);
-      ms_send(x);
-      ms_send(y);
+      sendByte(&ms_transceiver, s);
+      sendByte(&ms_transceiver, x);
+      sendByte(&ms_transceiver, y);
       
       if (ms_type == MS_TYPE_WHEEL_3 || ms_type == MS_TYPE_WHEEL_5) {
         if(report[3] >> 7) {
@@ -580,7 +477,7 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
           }
         }
 
-        ms_send(z);
+        sendByte(&ms_transceiver, z);
       }
       
       tuh_hid_receive_report(dev_addr, instance);
@@ -590,61 +487,38 @@ void tuh_hid_report_received_cb(uint8_t dev_addr, uint8_t instance, uint8_t cons
   
 }
 
-void irq_callback(uint gpio, uint32_t events) {
-  if(irq_enabled) {
-    if(gpio == KBCLK && !gpio_get(KBDAT)) {
-      printf("IRQ KB  ");
-      receive_kbd = true;
-    }
-    
-    if(gpio == MSCLK && !gpio_get(MSDAT)) {
-      printf("IRQ MS  ");
-      receive_ms = true;
-    }
-  }
-}
-
 void main() {
   board_init();
-  printf("ps2x2pico-0.6\n");
+  printf("ps2x2pico-0.6 DEBUG=%s\n", DEBUG ? "true" : "false");
+  // Initialize the output queue.
+  initializePs2Transceiver(&kbd_transceiver, iokb, KBDAT, &kbdMessageReceived);
+  initializePs2Transceiver(&ms_transceiver, ioms, MSDAT, &msMessageReceived);
   
-  gpio_init(KBCLK);
-  gpio_init(KBDAT);
-  gpio_init(MSCLK);
-  gpio_init(MSDAT);
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
   
-  gpio_set_irq_enabled_with_callback(KBCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
-  gpio_set_irq_enabled_with_callback(MSCLK, GPIO_IRQ_EDGE_RISE, true, &irq_callback);
   tusb_init();
   
   while(true) {
     tuh_task();
-    
+    // Process updates for the keyboard and mouse.
+    runLoopIteration(&kbd_transceiver);
+    runLoopIteration(&ms_transceiver);
+        
     if(repeating) {
       repeating = false;
       
       if(repeat) {
         if(repeatmod) {
-          if(repeat > 3 && repeat != 6) kbd_send(0xe0);
-          kbd_send(mod2ps2[repeat - 1]);
+          if(repeat > 3 && repeat != 6) sendByte(&kbd_transceiver, 0xe0);
+          sendByte(&kbd_transceiver, mod2ps2[repeat - 1]);
         } else {
           maybe_send_e0(repeat);
-          kbd_send(hid2ps2[repeat]);
+          sendByte(&kbd_transceiver, hid2ps2[repeat]);
         }
       }
     }
-    
-    if(receive_kbd) {
-      receive_kbd = false;
-      ps2_receive(true);
-    }
-    
-    if(receive_ms) {
-      receive_ms = false;
-      ps2_receive(false);
-    }
   }
 }
+
