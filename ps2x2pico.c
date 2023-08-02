@@ -157,9 +157,9 @@ void kbdMessageReceived(uint8_t data, bool parityIsCorrect) {
     default:
       switch(data) {
         case 0xff: // CMD: Reset
-          kbd_send(0xfa);
+          sendByte(&kbd_transceiver, 0xfa);
           
-          kbd_enabled = true;
+          kb_enabled = true;
           repeat = 0;
           blinking = true;
           add_alarm_in_ms(20, blink_callback, NULL, false);
@@ -497,7 +497,7 @@ void main() {
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
-    
+  
   tusb_init();
   
   while(true) {
@@ -511,7 +511,7 @@ void main() {
       
       if(repeat) {
         if(repeatmod) {
-          if(repeat > 3 && repeat != 6) kbd_send(0xe0);
+          if(repeat > 3 && repeat != 6) sendByte(&kbd_transceiver, 0xe0);
           sendByte(&kbd_transceiver, mod2ps2[repeat - 1]);
         } else {
           maybe_send_e0(repeat);
