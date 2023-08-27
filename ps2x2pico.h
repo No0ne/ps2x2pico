@@ -24,23 +24,27 @@
  *
  */
 
-#include "hardware/pio.h"
-#include "pico/util/queue.h"
-#include "ps2x2pico.h"
+#include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
 
-typedef void (*rx_callback)(u8 byte, u8 prev_byte);
+typedef int8_t s8;
+typedef int16_t s16;
+typedef int32_t s32;
 
-typedef struct {
-  PIO pio;
-  uint sm;
-  queue_t qbytes;
-  queue_t qpacks;
-  u8 sent;
-  rx_callback rx;
-  u8 last_rx;
-  u8 last_tx;
-  bool idle;
-} ps2phy;
+typedef uint8_t u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+typedef uint64_t u64;
 
-void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx);
-void ps2phy_task(ps2phy* this);
+void kb_usb_mount(u8 dev_addr, u8 instance);
+void kb_usb_umount(u8 dev_addr, u8 instance);
+void kb_usb_receive(u8 const* report);
+void kb_task();
+void kb_init();
+
+void ms_usb_mount(u8 dev_addr, u8 instance);
+void ms_usb_umount(u8 dev_addr, u8 instance);
+void ms_usb_receive(u8 const* report);
+void ms_task();
+void ms_init();
