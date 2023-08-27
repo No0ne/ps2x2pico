@@ -27,6 +27,8 @@
 #include "ps2phy.h"
 #include "ps2phy.pio.h"
 
+uint prog = 0;
+
 u32 ps2phy_frame(u8 byte) {
   bool parity = 1;
   for (u8 i = 0; i < 8; i++) {
@@ -36,13 +38,17 @@ u32 ps2phy_frame(u8 byte) {
 }
 
 void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx) {
+  if(!prog) {
+    prog = pio_add_program(pio, &ps2phy_program);
+  }
+  
   queue_init(&this->qbytes, sizeof(u8), 9);
   queue_init(&this->qpacks, sizeof(u8) * 9, 16);
   
-  this->pio = pio;
-  this->sm = pio_claim_unused_sm(this->pio, true);
-  ps2phy_program_init(this->pio, this->sm, pio_add_program(this->pio, &ps2phy_program), data_pin);
+  this->sm = pio_claim_unused_sm(pio, true);
+  ps2phy_program_init(pio, this->sm, prog, data_pin);
   
+  this->pio = pio;
   this->sent = 0;
   this->rx = rx;
   this->last_rx = 0;
@@ -65,7 +71,7 @@ void ps2phy_task(ps2phy* this) {
     queue_try_add(&this->qpacks, &pack);
   }
   
-  this->idle = !pio_interrupt_get(this->pio, this->sm * 2);
+  this->idle = !pio_interrupt_get(this->pio, this->sm);
   
   if (!queue_is_empty(&this->qpacks) && pio_sm_is_tx_fifo_empty(this->pio, this->sm) && this->idle) {
     if (queue_try_peek(&this->qpacks, &pack)) {
@@ -80,10 +86,10 @@ void ps2phy_task(ps2phy* this) {
     }
   }
   
-  if (pio_interrupt_get(this->pio, this->sm * 2 + 1)) {
+  if (pio_interrupt_get(this->pio, this->sm + 4)) {
     this->sent = 0;
     pio_sm_drain_tx_fifo(this->pio, this->sm);
-    pio_interrupt_clear(this->pio, this->sm * 2 + 1);
+    pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
   if (!pio_sm_is_rx_fifo_empty(this->pio, this->sm)) {

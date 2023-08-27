@@ -186,5 +186,5 @@ void ms_task() {
 }
 
 void ms_init() {
-  ps2phy_init(&ms_phy, pio1, MSDAT, &ms_receive);
+  ps2phy_init(&ms_phy, pio0, MSDAT, &ms_receive);
 }

@@ -49,7 +49,7 @@ wait_to_write:
 sendloop:
   set pindirs, 0   [6] // clock set to input (high)
   jmp pin sendcontinue // if clock is high, host is still receiving data
-  irq wait 1 rel       // clock was low, host wants to send data, notify of failure to send data
+  irq wait 4 rel       // clock was low, host wants to send data, notify of failure to send data
   jmp restart          // and wait for restart
 sendcontinue:
   out pindirs, 1   [6] // write out data
