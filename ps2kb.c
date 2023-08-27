@@ -65,7 +65,7 @@ u8 repeat = 0;
 u8 leds = 0;
 
 void kb_send(u8 byte) {
-  if(DEBUG) printf("%02x ", byte);
+  //if(DEBUG) printf("%02x ", byte);
   queue_try_add(&kb_phy.qbytes, &byte);
 }
 
