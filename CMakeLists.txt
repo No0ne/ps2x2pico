@@ -15,14 +15,19 @@ project(ps2x2pico C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-add_executable(ps2x2pico ps2x2pico.c ps2transceiver.c)
+add_executable(ps2x2pico ps2x2pico.c ps2phy.c)
 
-pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/ps2device.pio)
+pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/ps2phy.pio)
 
 add_compile_definitions(DEBUG=1)
+# Keyboard data pin. Clock pin is 1 more than the data pin.
+add_compile_definitions(KBDAT=11)
+# Mouse data pin. Clock pin is 1 more than the data pin.
+add_compile_definitions(MSDAT=14)
+add_compile_definitions(LVPWR=13)
 
 pico_set_program_name(ps2x2pico "ps2x2pico")
-pico_set_program_version(ps2x2pico "0.6")
+pico_set_program_version(ps2x2pico "0.7")
 
 pico_enable_stdio_uart(ps2x2pico 1)
 pico_enable_stdio_usb(ps2x2pico 0)
