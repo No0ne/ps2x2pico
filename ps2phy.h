@@ -35,11 +35,11 @@ typedef struct {
   uint sm;
   queue_t qbytes;
   queue_t qpacks;
-  u8 sent;
   rx_callback rx;
   u8 last_rx;
   u8 last_tx;
-  bool idle;
+  u8 sent;
+  u8 busy;
 } ps2phy;
 
 void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx);

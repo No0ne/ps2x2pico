@@ -27,7 +27,7 @@
 #include "ps2phy.h"
 #include "ps2phy.pio.h"
 
-uint prog = 0;
+s8 prog = -1;
 
 u32 ps2phy_frame(u8 byte) {
   bool parity = 1;
@@ -38,7 +38,7 @@ u32 ps2phy_frame(u8 byte) {
 }
 
 void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx) {
-  if(!prog) {
+  if (prog == -1) {
     prog = pio_add_program(pio, &ps2phy_program);
   }
   
@@ -53,7 +53,7 @@ void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx) {
   this->rx = rx;
   this->last_rx = 0;
   this->last_tx = 0;
-  this->idle = true;
+  this->busy = 0;
 }
 
 void ps2phy_task(ps2phy* this) {
@@ -71,9 +71,18 @@ void ps2phy_task(ps2phy* this) {
     queue_try_add(&this->qpacks, &pack);
   }
   
-  this->idle = !pio_interrupt_get(this->pio, this->sm);
+  if (pio_interrupt_get(this->pio, this->sm)) {
+    this->busy = 1;
+  } else {
+    this->busy &= 2;
+  }
   
-  if (!queue_is_empty(&this->qpacks) && pio_sm_is_tx_fifo_empty(this->pio, this->sm) && this->idle) {
+  if (pio_interrupt_get(this->pio, this->sm + 4)) {
+    this->sent--;
+    pio_interrupt_clear(this->pio, this->sm + 4);
+  }
+  
+  if (!queue_is_empty(&this->qpacks) && pio_sm_is_tx_fifo_empty(this->pio, this->sm) && !this->busy) {
     if (queue_try_peek(&this->qpacks, &pack)) {
       if (this->sent == pack[0]) {
         this->sent = 0;
@@ -81,15 +90,10 @@ void ps2phy_task(ps2phy* this) {
       } else {
         this->sent++;
         this->last_tx = pack[this->sent];
+        this->busy |= 2;
         pio_sm_put(this->pio, this->sm, ps2phy_frame(this->last_tx));
       }
     }
-  }
-  
-  if (pio_interrupt_get(this->pio, this->sm + 4)) {
-    this->sent = 0;
-    pio_sm_drain_tx_fifo(this->pio, this->sm);
-    pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
   if (!pio_sm_is_rx_fifo_empty(this->pio, this->sm)) {
@@ -110,8 +114,8 @@ void ps2phy_task(ps2phy* this) {
       return;
     }
     
-    while(queue_try_remove(&this->qbytes, &byte));
-    while(queue_try_remove(&this->qpacks, &pack));
+    while (queue_try_remove(&this->qbytes, &byte));
+    while (queue_try_remove(&this->qpacks, &pack));
     
     (*this->rx)(fifo, this->last_rx);
     this->last_rx = fifo;

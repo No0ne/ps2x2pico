@@ -19,7 +19,7 @@ add_executable(ps2x2pico ps2x2pico.c ps2phy.c ps2kb.c ps2ms.c)
 
 pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/ps2phy.pio)
 
-add_compile_definitions(DEBUG=1)
+add_compile_definitions(DEBUG=0)
 # Keyboard data pin. Clock pin is 1 more than the data pin.
 add_compile_definitions(KBDAT=11)
 # Mouse data pin. Clock pin is 1 more than the data pin.
