@@ -9,7 +9,7 @@ Keyboard only variant: https://github.com/No0ne/ps2pico
 
 PC-XT variant: https://github.com/No0ne/ps2pico/tree/xt-version
 
-PiKVM integration: https://docs.pikvm.org/pico_hid/
+[PiKVM](https://pikvm.org) integration: https://docs.pikvm.org/pico_hid/
 
 # Usage
 * Download `ps2x2pico.uf2` from https://github.com/No0ne/ps2x2pico/releases
