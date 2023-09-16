@@ -19,15 +19,12 @@ add_executable(ps2x2pico ps2x2pico.c ps2phy.c ps2kb.c ps2ms.c)
 
 pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/ps2phy.pio)
 
-add_compile_definitions(DEBUG=0)
-# Keyboard data pin. Clock pin is 1 more than the data pin.
-add_compile_definitions(KBDAT=11)
-# Mouse data pin. Clock pin is 1 more than the data pin.
-add_compile_definitions(MSDAT=14)
-add_compile_definitions(LVPWR=13)
+add_compile_definitions(LVPWR=13) # Level shifter pull-up voltage
+add_compile_definitions(KBDAT=11) # Keyboard data pin, clock pin is 12 (data pin+1)
+add_compile_definitions(MSDAT=14) # Mouse data pin, clock pin is 15 (data pin+1)
 
 pico_set_program_name(ps2x2pico "ps2x2pico")
-pico_set_program_version(ps2x2pico "0.8")
+pico_set_program_version(ps2x2pico "0.9")
 
 pico_enable_stdio_uart(ps2x2pico 1)
 pico_enable_stdio_usb(ps2x2pico 0)

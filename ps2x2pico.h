@@ -37,14 +37,12 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-void kb_usb_mount(u8 dev_addr, u8 instance);
-void kb_usb_umount(u8 dev_addr, u8 instance);
+void tuh_kb_set_leds(u8 leds);
 void kb_usb_receive(u8 const* report);
-void kb_task();
-void kb_init();
+bool kb_task();
+void kb_init(u8 gpio);
+void kb_reset();
 
-void ms_usb_mount(u8 dev_addr, u8 instance);
-void ms_usb_umount(u8 dev_addr, u8 instance);
 void ms_usb_receive(u8 const* report);
-void ms_task();
-void ms_init();
+bool ms_task();
+void ms_init(u8 gpio);

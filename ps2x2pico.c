@@ -29,29 +29,47 @@
 #include "tusb.h"
 #include "ps2x2pico.h"
 
+u8 kb_addr = 0;
+u8 kb_inst = 0;
+u8 kb_leds = 0;
+
+void tuh_kb_set_leds(u8 leds) {
+  if(kb_addr) {
+    kb_leds = leds;
+    printf("HID device address = %d, instance = %d, LEDs = %d\n", kb_addr, kb_inst, kb_leds);
+    tuh_hid_set_report(kb_addr, kb_inst, 0, HID_REPORT_TYPE_OUTPUT, &kb_leds, sizeof(kb_leds));
+  }
+}
+
 void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_len) {
-  if(DEBUG) printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
+  printf("HID device address = %d, instance = %d is mounted\n", dev_addr, instance);
 
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      if(DEBUG) printf("HID Interface Protocol = Keyboard\n");
-      kb_usb_mount(dev_addr, instance);
+      printf("HID Interface Protocol = Keyboard\n");
+      
+      kb_addr = dev_addr;
+      kb_inst = instance;
+      kb_reset();
+      
       tuh_hid_receive_report(dev_addr, instance);
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
-      if(DEBUG) printf("HID Interface Protocol = Mouse\n");
+      printf("HID Interface Protocol = Mouse\n");
       //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
-      ms_usb_mount(dev_addr, instance);
       tuh_hid_receive_report(dev_addr, instance);
     break;
   }
 }
 
 void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
-  if(DEBUG) printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
-  kb_usb_umount(dev_addr, instance);
-  ms_usb_umount(dev_addr, instance);
+  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  
+  if(dev_addr == kb_addr && instance == kb_inst) {
+    kb_addr = 0;
+    kb_inst = 0;
+  }
 }
 
 void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
@@ -74,15 +92,15 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
 
 void main() {
   board_init();
-  printf("\n%s-%s DEBUG=%s\n", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING, DEBUG ? "true" : "false");
+  printf("\n%s-%s\n", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING);
   
   gpio_init(LVPWR);
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
   
   tusb_init();
-  kb_init();
-  ms_init();
+  kb_init(KBDAT);
+  ms_init(MSDAT);
   
   while(true) {
     tuh_task();

@@ -24,7 +24,6 @@
  *
  */
 
-#include "tusb.h"
 #include "ps2phy.h"
 ps2phy ms_phy;
 
@@ -33,42 +32,38 @@ u32 ms_magic_seq = 0;
 u8 ms_type = 0;
 
 void ms_send(u8 byte) {
-  if(DEBUG) printf("%02x ", byte);
   queue_try_add(&ms_phy.qbytes, &byte);
 }
 
-void ms_usb_mount(u8 dev_addr, u8 instance) {
-  //ms_send(0xaa);
-}
-
-void ms_usb_umount(u8 dev_addr, u8 instance) {
-  
-}
-
-void ms_usb_receive(u8 const* report) {
-  if(DEBUG) printf("%02x %02x %02x %02x\n", report[0], report[1], report[2], report[3]);
-  
-  if (ms_streaming) {
-    u8 byte1 = 0x8 | (report[0] & 0x7);
-    s8 byte2 = report[1];
-    s8 byte3 = 0x100 - report[2];
-    s8 byte4 = 0x100 - report[3];
+void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
+  if(ms_streaming) {
+    u8 byte1 = 0x8 | (buttons & 0x7);
+    s8 byte2 = x;
+    s8 byte3 = 0x100 - y;
+    s8 byte4 = 0x100 - v;
     
-    if (byte2 < 0) byte1 |= 0x10;
-    if (byte3 < 0) byte1 |= 0x20;
+    if(byte2 < 0) byte1 |= 0x10;
+    if(byte3 < 0) byte1 |= 0x20;
     
     ms_send(byte1);
     ms_send(byte2);
     ms_send(byte3);
     
-    if (ms_type == 3 || ms_type == 4) {
-      if (byte4 < -8) byte4 = -8;
-      if (byte4 > 7) byte4 = 7;
-      if (byte4 < 0) byte4 |= 0xf8;
+    if(ms_type == 3 || ms_type == 4) {
+      if(h == v) {
+        if(byte4 < -8) byte4 = -8;
+        if(byte4 > 7) byte4 = 7;
+        if(byte4 < 0) byte4 |= 0xf8;
+      } else {
+        if(v < 0) byte4 = 0x01;
+        if(v > 0) byte4 = 0xff;
+        if(h < 0) byte4 = 0x02;
+        if(h > 0) byte4 = 0xfe;
+      }
       
-      if (ms_type == 4) {
+      if(ms_type == 4) {
         byte4 &= 0xf;
-        byte4 |= (report[0] << 1) & 0x30;
+        byte4 |= (buttons << 1) & 0x30;
       }
       
       ms_send(byte4);
@@ -76,16 +71,18 @@ void ms_usb_receive(u8 const* report) {
   }
 }
 
+void ms_usb_receive(u8 const* report) {
+  ms_send_packet(report[0], report[1], report[2], report[3], report[3]);
+}
+
 void ms_receive(u8 byte, u8 prev_byte) {
-  if(DEBUG) printf("!%02x ", byte);
-  
   switch (prev_byte) {
     case 0xf3: // Set Sample Rate
       ms_magic_seq = ((ms_magic_seq << 8) | byte) & 0xffffff;
       
-      if (ms_type == 0 && ms_magic_seq == 0xc86450) {
+      if(ms_type == 0 && ms_magic_seq == 0xc86450) {
         ms_type = 3;
-      } else if (ms_type == 3 && ms_magic_seq == 0xc8c850) {
+      } else if(ms_type == 3 && ms_magic_seq == 0xc8c850) {
         ms_type = 4;
       }
     break;
@@ -142,10 +139,11 @@ void ms_receive(u8 byte, u8 prev_byte) {
   ms_send(0xfa);
 }
 
-void ms_task() {
+bool ms_task() {
   ps2phy_task(&ms_phy);
+  return ms_streaming && !ms_phy.busy;
 }
 
-void ms_init() {
-  ps2phy_init(&ms_phy, pio0, MSDAT, &ms_receive);
+void ms_init(u8 gpio) {
+  ps2phy_init(&ms_phy, pio0, gpio, &ms_receive);
 }

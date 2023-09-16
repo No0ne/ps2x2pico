@@ -24,7 +24,6 @@
  *
  */
 
-#include "tusb.h"
 #include "ps2phy.h"
 ps2phy kb_phy;
 
@@ -40,7 +39,6 @@ u8 const hid2ps2[] = {
   0x75, 0x7d, 0x70, 0x71, 0x61, 0x2f, 0x37, 0x0f, 0x08, 0x10, 0x18, 0x20, 0x28, 0x30, 0x38, 0x40,
   0x48, 0x50, 0x57, 0x5f
 };
-u8 const maparray = sizeof(hid2ps2);
 u32 const repeats[] = {
   33333, 37453, 41667, 45872, 48309, 54054, 58480, 62500,
   66667, 75188, 83333, 91743, 100000, 108696, 116279, 125000,
@@ -50,54 +48,49 @@ u32 const repeats[] = {
 u16 const delays[] = { 250, 500, 750, 1000 };
 
 bool kb_enabled = true;
-u8 kb_addr = 0;
-u8 kb_inst = 0;
 
 bool blinking = false;
 bool repeating = false;
-bool repeatmod = false;
 u32 repeat_us;
 u16 delay_ms;
 alarm_id_t repeater;
 
 u8 prev_rpt[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 u8 repeat = 0;
-u8 leds = 0;
 
 void kb_send(u8 byte) {
-  //if(DEBUG) printf("%02x ", byte);
   queue_try_add(&kb_phy.qbytes, &byte);
 }
 
 void kb_maybe_send_e0(u8 byte) {
   if(byte == 0x46 ||
-     byte >= 0x49 && byte <= 0x52 ||
+    (byte >= 0x49 && byte <= 0x52) ||
      byte == 0x54 || byte == 0x58 ||
      byte == 0x65 || byte == 0x66 ||
-     byte >= 0x81) {
+    (byte >= 0x81 && byte < 0xe0) ||
+    (byte > 0xe2 && byte != 0xe5)) {
     kb_send(0xe0);
   }
 }
 
 void kb_set_leds(u8 byte) {
   if(byte > 7) byte = 0;
-  leds = led2ps2[byte];
-  tuh_hid_set_report(kb_addr, kb_inst, 0, HID_REPORT_TYPE_OUTPUT, &leds, sizeof(leds));
+  tuh_kb_set_leds(led2ps2[byte]);
 }
 
 int64_t blink_callback() {
   if(blinking) {
-    if(kb_addr) kb_set_leds(7);
+    kb_set_leds(7);
     blinking = false;
     return 500000;
   }
   
-  if(kb_addr) {
-    kb_set_leds(0);
-    kb_send(0xaa);
-  } else {
-    kb_send(0xfc);
-  }
+  //if(kb_addr) {
+  kb_set_leds(0);
+  kb_send(0xaa);
+  //} else {
+  //  kb_send(0xfc);
+  //}
   
   return 0;
 }
@@ -121,48 +114,57 @@ int64_t repeat_callback() {
   return 0;
 }
 
-void kb_usb_mount(u8 dev_addr, u8 instance) {
-  kb_addr = dev_addr;
-  kb_inst = instance;
-  kb_reset();
-}
-
-void kb_usb_umount(u8 dev_addr, u8 instance) {
-  if(dev_addr == kb_addr && instance == kb_inst) {
-    kb_addr = 0;
-    kb_inst = 0;
+void kb_send_key(u8 key, bool state, u8 modifiers) {
+  if(!kb_enabled) return;
+  if(key >= sizeof(hid2ps2) && key < 0xe0 && key > 0xe7) return;
+  
+  if(key == 0x48) {
+    repeat = 0;
+    
+    if(state) {
+      if(modifiers & 0x1 || modifiers & 0x10) {
+        kb_send(0xe0); kb_send(0x7e); kb_send(0xe0); kb_send(0xf0); kb_send(0x7e);
+      } else {
+        kb_send(0xe1); kb_send(0x14); kb_send(0x77); kb_send(0xe1);
+        kb_send(0xf0); kb_send(0x14); kb_send(0xf0); kb_send(0x77);
+      }
+    }
+    
+    return;
+  }
+  
+  kb_maybe_send_e0(key);
+  
+  if(state) {
+    repeat = key;
+    if(repeater) cancel_alarm(repeater);
+    repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
+  } else {
+    if(key == repeat) repeat = 0;
+    kb_send(0xf0);
+  }
+  
+  if(key >= 0xe0 && key <= 0xe7) {
+    kb_send(mod2ps2[key - 0xe0]);
+  } else {
+    kb_send(hid2ps2[key]);
   }
 }
 
 void kb_usb_receive(u8 const* report) {
-  if(kb_enabled && report[1] == 0) {
+  if(report[1] == 0) {
   
     if(report[0] != prev_rpt[0]) {
       u8 rbits = report[0];
       u8 pbits = prev_rpt[0];
       
       for(u8 j = 0; j < 8; j++) {
-        
-        if((rbits & 0x01) != (pbits & 0x01)) {
-          if(j > 2 && j != 5) kb_send(0xe0);
-          
-          if(rbits & 0x01) {
-            repeat = j + 1;
-            repeatmod = true;
-            
-            if(repeater) cancel_alarm(repeater);
-            repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
-          } else {
-            if(j + 1 == repeat && repeatmod) repeat = 0;
-            kb_send(0xf0);
-          }
-          
-          kb_send(mod2ps2[j]);
+        if((rbits & 0x1) != (pbits & 0x1)) {
+          kb_send_key(j + 0xe0, rbits & 0x1, report[0]);
         }
         
         rbits = rbits >> 1;
         pbits = pbits >> 1;
-        
       }
     }
     
@@ -177,13 +179,8 @@ void kb_usb_receive(u8 const* report) {
           }
         }
         
-        if(brk && report[i] < maparray) {
-          if(prev_rpt[i] == 0x48) continue;
-          if(prev_rpt[i] == repeat && !repeatmod) repeat = 0;
-          
-          kb_maybe_send_e0(prev_rpt[i]);
-          kb_send(0xf0);
-          kb_send(hid2ps2[prev_rpt[i]]);
+        if(brk) {
+          kb_send_key(prev_rpt[i], false, report[0]);
         }
       }
       
@@ -197,27 +194,8 @@ void kb_usb_receive(u8 const* report) {
           }
         }
         
-        if(make && report[i] < maparray) {
-          repeat = 0;
-          
-          if(report[i] == 0x48) {
-            if(report[0] & 0x1 || report[0] & 0x10) {
-              kb_send(0xe0); kb_send(0x7e); kb_send(0xe0); kb_send(0xf0); kb_send(0x7e);
-            } else {
-              kb_send(0xe1); kb_send(0x14); kb_send(0x77); kb_send(0xe1);
-              kb_send(0xf0); kb_send(0x14); kb_send(0xf0); kb_send(0x77);
-            }
-            continue;
-          }
-          
-          repeat = report[i];
-          repeatmod = false;
-          
-          if(repeater) cancel_alarm(repeater);
-          repeater = add_alarm_in_ms(delay_ms, repeat_callback, NULL, false);
-          
-          kb_maybe_send_e0(report[i]);
-          kb_send(hid2ps2[report[i]]);
+        if(make) {
+          kb_send_key(report[i], true, report[0]);
         }
       }
     }
@@ -272,24 +250,26 @@ void kb_receive(u8 byte, u8 prev_byte) {
   kb_send(0xfa);
 }
 
-void kb_task() {
+bool kb_task() {
   ps2phy_task(&kb_phy);
   
   if(repeating) {
     repeating = false;
     
     if(repeat) {
-      if(repeatmod) {
-        if(repeat > 3 && repeat != 6) kb_send(0xe0);
-        kb_send(mod2ps2[repeat - 1]);
+      kb_maybe_send_e0(repeat);
+      if(repeat >= 0xe0 && repeat <= 0xe7) {
+        kb_send(mod2ps2[repeat - 0xe0]);
       } else {
-        kb_maybe_send_e0(repeat);
         kb_send(hid2ps2[repeat]);
       }
     }
   }
+  
+  return kb_enabled && !kb_phy.busy;
 }
 
-void kb_init() {
-  ps2phy_init(&kb_phy, pio0, KBDAT, &kb_receive);
+void kb_init(u8 gpio) {
+  ps2phy_init(&kb_phy, pio0, gpio, &kb_receive);
+  kb_reset();
 }

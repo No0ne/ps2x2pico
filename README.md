@@ -38,12 +38,6 @@ cmake ..
 make
 ```
 
-# Debug Builds
-Debug logging is controlled by changing the CMakeLists.txt line. Changing the '=1' to an '=0' will remove debug messages from the build. Debug messages are written to the serial output of the Pico.
-```
-add_compile_definitions(DEBUG=1)
-```
-
 # Resources
 * https://github.com/No0ne/ps2pico
 * https://wiki.osdev.org/PS/2_Keyboard
