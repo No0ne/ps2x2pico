@@ -11,7 +11,7 @@
 restart:
   set    pindirs, 0                 // set clock to input mode
   irq    clear 0 rel     side 0     // clear busy flag, set data to input mode
-  
+
 receivecheck:
   jmp    pin, sendcheck             // if clock is high, see if we have data to send
   irq    nowait 0 rel               // clock is being pulled low, set busy flag
@@ -37,7 +37,7 @@ receiveloop:
   nop                    side 1 [6] // data low
   set    pindirs, 1             [7] // clock low
   jmp    restart                [7]
-  
+
 sendcheck:
   jmp    !osre, send                // see if we have data to send
   jmp    receivecheck               // no data to send, restart
@@ -49,8 +49,8 @@ send:
 sendloop:
   set    pindirs, 0             [6] // clock set to input (high)
   jmp    pin, sendcontinue          // if clock is high, host is still receiving data
-  out    null, 32                   // clear OSR
-  irq    wait 4 rel                 // clock was low, host wants to send data, notify of failure to send data
+  out    null, 32                   // clock was low, clear OSR
+  irq    wait 4 rel                 // host wants to send data, notify of failure to send data
   jmp    restart                    // and wait for restart
 
 sendcontinue:

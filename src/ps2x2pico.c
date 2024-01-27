@@ -102,7 +102,7 @@ void main() {
   kb_init(KBDAT);
   ms_init(MSDAT);
   
-  while(true) {
+  while(1) {
     tuh_task();
     kb_task();
     ms_task();

@@ -62,13 +62,12 @@ void kb_send(u8 byte) {
   queue_try_add(&kb_phy.qbytes, &byte);
 }
 
-void kb_maybe_send_e0(u8 byte) {
-  if(byte == 0x46 ||
-    (byte >= 0x49 && byte <= 0x52) ||
-     byte == 0x54 || byte == 0x58 ||
-     byte == 0x65 || byte == 0x66 ||
-    (byte >= 0x81 && byte < 0xe0) ||
-    (byte > 0xe2 && byte != 0xe5)) {
+void kb_maybe_send_e0(u8 key) {
+  if(key == 0x46 ||
+    (key >= 0x49 && key <= 0x52) ||
+     key == 0x54 || key == 0x58 ||
+     key == 0x65 || key == 0x66 ||
+    (key > 0xe2 && key != 0xe5)) {
     kb_send(0xe0);
   }
 }

@@ -31,14 +31,14 @@ s8 prog = -1;
 
 u32 ps2phy_frame(u8 byte) {
   bool parity = 1;
-  for (u8 i = 0; i < 8; i++) {
+  for(u8 i = 0; i < 8; i++) {
     parity = parity ^ (byte >> i & 1);
   }
   return ((1 << 10) | (parity << 9) | (byte << 1)) ^ 0x7ff;
 }
 
 void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx) {
-  if (prog == -1) {
+  if(prog == -1) {
     prog = pio_add_program(pio, &ps2phy_program);
   }
   
@@ -61,8 +61,8 @@ void ps2phy_task(ps2phy* this) {
   u8 byte;
   u8 pack[9];
   
-  if (!queue_is_empty(&this->qbytes)) {
-    while (i < 9 && queue_try_remove(&this->qbytes, &byte)) {
+  if(!queue_is_empty(&this->qbytes)) {
+    while(i < 9 && queue_try_remove(&this->qbytes, &byte)) {
       i++;
       pack[i] = byte;
     }
@@ -71,20 +71,20 @@ void ps2phy_task(ps2phy* this) {
     queue_try_add(&this->qpacks, &pack);
   }
   
-  if (pio_interrupt_get(this->pio, this->sm)) {
+  if(pio_interrupt_get(this->pio, this->sm)) {
     this->busy = 1;
   } else {
     this->busy &= 2;
   }
   
-  if (pio_interrupt_get(this->pio, this->sm + 4)) {
+  if(pio_interrupt_get(this->pio, this->sm + 4)) {
     this->sent--;
     pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
-  if (!queue_is_empty(&this->qpacks) && pio_sm_is_tx_fifo_empty(this->pio, this->sm) && !this->busy) {
-    if (queue_try_peek(&this->qpacks, &pack)) {
-      if (this->sent == pack[0]) {
+  if(!queue_is_empty(&this->qpacks) && pio_sm_is_tx_fifo_empty(this->pio, this->sm) && !this->busy) {
+    if(queue_try_peek(&this->qpacks, &pack)) {
+      if(this->sent == pack[0]) {
         this->sent = 0;
         queue_try_remove(&this->qpacks, &pack);
       } else {
@@ -96,26 +96,27 @@ void ps2phy_task(ps2phy* this) {
     }
   }
   
-  if (!pio_sm_is_rx_fifo_empty(this->pio, this->sm)) {
+  if(!pio_sm_is_rx_fifo_empty(this->pio, this->sm)) {
     u32 fifo = pio_sm_get(this->pio, this->sm) >> 23;
     
     bool parity = 1;
-    for (i = 0; i < 8; i++) {
+    for(i = 0; i < 8; i++) {
       parity = parity ^ (fifo >> i & 1);
     }
     
-    if (parity != fifo >> 8) {
+    if(parity != fifo >> 8) {
       pio_sm_put(this->pio, this->sm, ps2phy_frame(0xfe));
       return;
     }
     
-    if (fifo == 0xfe) {
+    if(fifo & 0xff == 0xfe) {
       pio_sm_put(this->pio, this->sm, ps2phy_frame(this->last_tx));
       return;
     }
     
-    while (queue_try_remove(&this->qbytes, &byte));
-    while (queue_try_remove(&this->qpacks, &pack));
+    while(queue_try_remove(&this->qbytes, &byte));
+    while(queue_try_remove(&this->qpacks, &pack));
+    this->sent = 0;
     
     (*this->rx)(fifo, this->last_rx);
     this->last_rx = fifo;
