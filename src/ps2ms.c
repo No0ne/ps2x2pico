@@ -35,6 +35,11 @@ void ms_send(u8 byte) {
   queue_try_add(&ms_phy.qbytes, &byte);
 }
 
+void ms_reset() {
+  ms_send(0xaa);
+  ms_send(0x00);
+}
+
 void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
   if(ms_streaming) {
     u8 byte1 = 0x8 | (buttons & 0x7);
@@ -146,4 +151,5 @@ bool ms_task() {
 
 void ms_init(u8 gpio) {
   ps2phy_init(&ms_phy, pio0, gpio, &ms_receive);
+  ms_reset();
 }
