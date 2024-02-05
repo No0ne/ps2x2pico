@@ -9,6 +9,8 @@ Keyboard only variant: https://github.com/No0ne/ps2pico
 
 PC-XT variant: https://github.com/No0ne/ps2pico/tree/xt-version
 
+[PicoMiteVGA](https://geoffg.net/picomitevga.html) variant: https://github.com/No0ne/hid2cdc
+
 [PiKVM](https://pikvm.org) integration:
 * https://docs.pikvm.org/pico_hid/
 * https://docs.pikvm.org/pico_hid_bridge/
