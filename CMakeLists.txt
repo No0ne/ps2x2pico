@@ -20,6 +20,7 @@ pico_sdk_init()
 add_executable(ps2x2pico src/ps2x2pico.c src/ps2phy.c src/ps2kb.c src/ps2ms.c)
 
 pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2phy.pio)
+pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2in.pio)
 
 add_compile_definitions(LVPWR=13) # Level shifter pull-up voltage
 add_compile_definitions(KBDAT=11) # Keyboard data pin, clock pin is 12 (data pin+1)

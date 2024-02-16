@@ -29,6 +29,8 @@
 #include "tusb.h"
 #include "ps2x2pico.h"
 
+#include "ps2in.pio.h"
+
 u8 kb_addr = 0;
 u8 kb_inst = 0;
 u8 kb_leds = 0;
@@ -98,13 +100,28 @@ void main() {
   gpio_set_dir(LVPWR, GPIO_OUT);
   gpio_put(LVPWR, 1);
   
+  u8 inpwr = 18;
+  gpio_init(inpwr);
+  gpio_set_dir(inpwr, GPIO_OUT);
+  gpio_put(inpwr, 1);
+  
   tusb_init();
   kb_init(KBDAT);
   ms_init(MSDAT);
+  
+  uint prog = pio_add_program(pio1, &ps2in_program);
+  int sm = pio_claim_unused_sm(pio1, true);
+  ps2in_program_init(pio1, sm, prog);
   
   while(1) {
     tuh_task();
     kb_task();
     ms_task();
+    
+    if(!pio_sm_is_rx_fifo_empty(pio1, sm)) {
+      u32 b = pio_sm_get(pio1, sm) >> 23;
+      printf("%08x\n", b);
+      kb_send(b);
+    }
   }
 }

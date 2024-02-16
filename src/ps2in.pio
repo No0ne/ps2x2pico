@@ -1,0 +1,46 @@
+;
+; Copyright (c) 2024 No0ne (https://github.com/No0ne)
+;
+; SPDX-License-Identifier: MIT
+;
+
+.program ps2in
+.side_set 1 opt pindirs
+
+  wait   0 pin, 1
+  set    x, 9
+
+bitloop:
+  wait   0 pin, 1
+  in     pins, 1
+  wait   1 pin, 1
+  jmp    x--, 2
+
+  wait   0 pin, 1
+  set    pindirs, 1             [7]
+  nop                           [7]
+  nop                           [7]
+  push   block                  [7]
+  nop                           [7]
+  nop                           [7]
+  set    pindirs, 0
+
+% c-sdk {
+  void ps2in_program_init(PIO pio, uint sm, uint offset) {
+    pio_sm_config c = ps2in_program_get_default_config(offset);
+    
+    u8 dat = 3;
+    u8 clk = dat + 1;
+    pio_gpio_init(pio, clk);
+    pio_gpio_init(pio, dat);
+    
+    sm_config_set_clkdiv(&c, 1024);
+    sm_config_set_set_pins(&c, clk, 1);
+    sm_config_set_sideset_pins(&c, dat);
+    sm_config_set_in_pins(&c, dat);
+    sm_config_set_in_shift(&c, true, false, 0);
+    
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+  }
+%}
