@@ -149,7 +149,8 @@ bool ms_task() {
   return ms_streaming && !ms_phy.busy;
 }
 
-void ms_init(u8 gpio) {
+void ms_init(u8 gpio, u8 passthru) {
   ps2phy_init(&ms_phy, pio0, gpio, &ms_receive);
   ms_reset();
 }
+

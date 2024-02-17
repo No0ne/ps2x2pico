@@ -25,7 +25,9 @@
  */
 
 #include "ps2phy.h"
+#include "ps2pt.h"
 ps2phy kb_phy;
+ps2pt kb_pt;
 
 u8 const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 u8 const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
@@ -75,6 +77,7 @@ void kb_maybe_send_e0(u8 key) {
 void kb_set_leds(u8 byte) {
   if(byte > 7) byte = 0;
   tuh_kb_set_leds(led2ps2[byte]);
+  ps2pt_set(&kb_pt, 0xed, byte);
 }
 
 int64_t blink_callback() {
@@ -101,6 +104,7 @@ void kb_reset() {
   repeat = 0;
   blinking = true;
   add_alarm_in_ms(1, blink_callback, NULL, false);
+  ps2pt_reset(&kb_pt);
 }
 
 int64_t repeat_callback() {
@@ -212,6 +216,7 @@ void kb_receive(u8 byte, u8 prev_byte) {
     case 0xf3: // Set typematic rate and delay
       repeat_us = repeats[byte & 0x1f];
       delay_ms = delays[(byte & 0x60) >> 5];
+      ps2pt_set(&kb_pt, 0xf3, byte);
     break;
     
     default:
@@ -250,6 +255,7 @@ void kb_receive(u8 byte, u8 prev_byte) {
 }
 
 bool kb_task() {
+  ps2pt_task(&kb_pt, &kb_phy);
   ps2phy_task(&kb_phy);
   
   if(repeating) {
@@ -268,7 +274,8 @@ bool kb_task() {
   return kb_enabled && !kb_phy.busy;
 }
 
-void kb_init(u8 gpio) {
+void kb_init(u8 gpio, u8 passthru) {
   ps2phy_init(&kb_phy, pio0, gpio, &kb_receive);
+  ps2pt_init(&kb_pt, pio1, passthru);
   kb_reset();
 }

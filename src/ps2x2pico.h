@@ -40,9 +40,9 @@ typedef uint64_t u64;
 void tuh_kb_set_leds(u8 leds);
 void kb_usb_receive(u8 const* report);
 bool kb_task();
-void kb_init(u8 gpio);
+void kb_init(u8 gpio, u8 passthru);
 void kb_reset();
 
 void ms_usb_receive(u8 const* report);
 bool ms_task();
-void ms_init(u8 gpio);
+void ms_init(u8 gpio, u8 passthru);
