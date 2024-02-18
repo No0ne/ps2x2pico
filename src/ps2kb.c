@@ -101,6 +101,8 @@ void kb_reset() {
   repeat = 0;
   blinking = true;
   add_alarm_in_ms(1, blink_callback, NULL, false);
+  
+  inreset();
 }
 
 int64_t repeat_callback() {
@@ -207,11 +209,13 @@ void kb_receive(u8 byte, u8 prev_byte) {
   switch (prev_byte) {
     case 0xed: // Set LEDs
       kb_set_leds(byte);
+      inleds(byte);
     break;
     
     case 0xf3: // Set typematic rate and delay
       repeat_us = repeats[byte & 0x1f];
       delay_ms = delays[(byte & 0x60) >> 5];
+      intmrd(byte);
     break;
     
     default:
