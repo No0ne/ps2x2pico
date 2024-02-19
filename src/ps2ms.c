@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,15 +24,18 @@
  *
  */
 
-#include "ps2phy.h"
-ps2phy ms_phy;
+#include "tusb.h"
+#include "ps2out.h"
+#include "ps2in.h"
+ps2out ms_out;
+ps2in ms_in;
 
 bool ms_streaming = false;
 u32 ms_magic_seq = 0;
 u8 ms_type = 0;
 
 void ms_send(u8 byte) {
-  queue_try_add(&ms_phy.qbytes, &byte);
+  queue_try_add(&ms_out.qbytes, &byte);
 }
 
 void ms_reset() {
@@ -42,7 +45,7 @@ void ms_reset() {
 
 void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
   if(ms_streaming) {
-    u8 byte1 = 0x8 | (buttons & 0x7);
+    u8 byte1 = 0x08 | (buttons & 0x07);
     s8 byte2 = x;
     s8 byte3 = 0x100 - y;
     s8 byte4 = 0x100 - v;
@@ -67,7 +70,7 @@ void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
       }
       
       if(ms_type == 4) {
-        byte4 &= 0xf;
+        byte4 &= 0x0f;
         byte4 |= (buttons << 1) & 0x30;
       }
       
@@ -83,13 +86,13 @@ void ms_usb_receive(u8 const* report) {
 void ms_receive(u8 byte, u8 prev_byte) {
   switch (prev_byte) {
     case 0xf3: // Set Sample Rate
-      ms_magic_seq = ((ms_magic_seq << 8) | byte) & 0xffffff;
+      /*ms_magic_seq = ((ms_magic_seq << 8) | byte) & 0xffffff;
       
       if(ms_type == 0 && ms_magic_seq == 0xc86450) {
         ms_type = 3;
       } else if(ms_type == 3 && ms_magic_seq == 0xc8c850) {
         ms_type = 4;
-      }
+      }*/
     break;
     
     default:
@@ -145,12 +148,13 @@ void ms_receive(u8 byte, u8 prev_byte) {
 }
 
 bool ms_task() {
-  ps2phy_task(&ms_phy);
-  return ms_streaming && !ms_phy.busy;
+  ps2out_task(&ms_out);
+  ps2in_task(&ms_in, &ms_out);
+  return ms_streaming && !ms_out.busy;
 }
 
-void ms_init(u8 gpio, u8 passthru) {
-  ps2phy_init(&ms_phy, pio0, gpio, &ms_receive);
+void ms_init(u8 gpio_out, u8 gpio_in) {
+  ps2out_init(&ms_out, pio0, gpio_out, &ms_receive);
+  ps2in_init(&ms_in, pio1, gpio_in);
   ms_reset();
 }
-

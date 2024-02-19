@@ -1,11 +1,11 @@
 ;
-; Copyright (c) 2022 No0ne (https://github.com/No0ne)
+; Copyright (c) 2024 No0ne (https://github.com/No0ne)
 ;           (c) 2023 Dustin Hoffman
 ;
 ; SPDX-License-Identifier: MIT
 ;
 
-.program ps2phy
+.program ps2out
 .side_set 1 opt pindirs
 
 restart:
@@ -59,8 +59,8 @@ sendcontinue:
   jmp    x--, sendloop          [6]
 
 % c-sdk {
-  void ps2phy_program_init(PIO pio, uint sm, uint offset, uint dat) {
-    pio_sm_config c = ps2phy_program_get_default_config(offset);
+  void ps2out_program_init(PIO pio, uint sm, uint offset, uint dat) {
+    pio_sm_config c = ps2out_program_get_default_config(offset);
     
     u8 clk = dat + 1;
     pio_gpio_init(pio, clk);

@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -31,6 +31,7 @@
 typedef int8_t s8;
 typedef int16_t s16;
 typedef int32_t s32;
+typedef int64_t s64;
 
 typedef uint8_t u8;
 typedef uint16_t u16;
@@ -38,11 +39,12 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 
 void tuh_kb_set_leds(u8 leds);
-void kb_usb_receive(u8 const* report);
-bool kb_task();
-void kb_init(u8 gpio, u8 passthru);
 void kb_reset();
 
+void kb_init(u8 gpio_out, u8 gpio_in);
+void kb_usb_receive(u8 const* report);
+bool kb_task();
+
+void ms_init(u8 gpio_out, u8 gpio_in);
 void ms_usb_receive(u8 const* report);
 bool ms_task();
-void ms_init(u8 gpio, u8 passthru);

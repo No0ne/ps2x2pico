@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,10 +24,11 @@
  *
  */
 
-#include "ps2phy.h"
-#include "ps2pt.h"
-ps2phy kb_phy;
-ps2pt kb_pt;
+#include "tusb.h"
+#include "ps2out.h"
+#include "ps2in.h"
+ps2out kb_out;
+ps2in kb_in;
 
 u8 const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 u8 const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
@@ -52,7 +53,6 @@ u16 const delays[] = { 250, 500, 750, 1000 };
 bool kb_enabled = true;
 
 bool blinking = false;
-bool repeating = false;
 u32 repeat_us;
 u16 delay_ms;
 alarm_id_t repeater;
@@ -61,15 +61,17 @@ u8 prev_rpt[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 u8 repeat = 0;
 
 void kb_send(u8 byte) {
-  queue_try_add(&kb_phy.qbytes, &byte);
+  queue_try_add(&kb_out.qbytes, &byte);
 }
 
 void kb_maybe_send_e0(u8 key) {
-  if(key == 0x46 ||
-    (key >= 0x49 && key <= 0x52) ||
-     key == 0x54 || key == 0x58 ||
-     key == 0x65 || key == 0x66 ||
-    (key > 0xe2 && key != 0xe5)) {
+  if(key == HID_KEY_PRINT_SCREEN ||
+     key >= HID_KEY_INSERT && key <= HID_KEY_ARROW_UP ||
+     key == HID_KEY_KEYPAD_DIVIDE ||
+     key == HID_KEY_KEYPAD_ENTER ||
+     key == HID_KEY_APPLICATION ||
+     key == HID_KEY_POWER ||
+     key >= HID_KEY_GUI_LEFT && key != HID_KEY_SHIFT_RIGHT) {
     kb_send(0xe0);
   }
 }
@@ -77,10 +79,10 @@ void kb_maybe_send_e0(u8 key) {
 void kb_set_leds(u8 byte) {
   if(byte > 7) byte = 0;
   tuh_kb_set_leds(led2ps2[byte]);
-  ps2pt_set(&kb_pt, 0xed, byte);
+  ps2in_set(&kb_in, 0xed, byte);
 }
 
-int64_t blink_callback() {
+s64 blink_callback() {
   if(blinking) {
     kb_set_leds(7);
     blinking = false;
@@ -104,12 +106,19 @@ void kb_reset() {
   repeat = 0;
   blinking = true;
   add_alarm_in_ms(1, blink_callback, NULL, false);
-  ps2pt_reset(&kb_pt);
+  ps2in_reset(&kb_in);
 }
 
-int64_t repeat_callback() {
+s64 repeat_callback() {
   if(repeat) {
-    repeating = true;
+    kb_maybe_send_e0(repeat);
+    
+    if(repeat >= HID_KEY_CONTROL_LEFT && repeat <= HID_KEY_GUI_RIGHT) {
+      kb_send(mod2ps2[repeat - HID_KEY_CONTROL_LEFT]);
+    } else {
+      kb_send(hid2ps2[repeat]);
+    }
+    
     return repeat_us;
   }
   
@@ -119,13 +128,16 @@ int64_t repeat_callback() {
 
 void kb_send_key(u8 key, bool state, u8 modifiers) {
   if(!kb_enabled) return;
-  if(key >= sizeof(hid2ps2) && key < 0xe0 && key > 0xe7) return;
+  if(key > HID_KEY_F24 &&
+     key < HID_KEY_CONTROL_LEFT ||
+     key > HID_KEY_GUI_RIGHT) return;
   
-  if(key == 0x48) {
+  if(key == HID_KEY_PAUSE) {
     repeat = 0;
     
     if(state) {
-      if(modifiers & 0x1 || modifiers & 0x10) {
+      if(modifiers & KEYBOARD_MODIFIER_LEFTCTRL ||
+         modifiers & KEYBOARD_MODIFIER_RIGHTCTRL) {
         kb_send(0xe0); kb_send(0x7e); kb_send(0xe0); kb_send(0xf0); kb_send(0x7e);
       } else {
         kb_send(0xe1); kb_send(0x14); kb_send(0x77); kb_send(0xe1);
@@ -147,8 +159,8 @@ void kb_send_key(u8 key, bool state, u8 modifiers) {
     kb_send(0xf0);
   }
   
-  if(key >= 0xe0 && key <= 0xe7) {
-    kb_send(mod2ps2[key - 0xe0]);
+  if(key >= HID_KEY_CONTROL_LEFT && key <= HID_KEY_GUI_RIGHT) {
+    kb_send(mod2ps2[key - HID_KEY_CONTROL_LEFT]);
   } else {
     kb_send(hid2ps2[key]);
   }
@@ -162,8 +174,8 @@ void kb_usb_receive(u8 const* report) {
       u8 pbits = prev_rpt[0];
       
       for(u8 j = 0; j < 8; j++) {
-        if((rbits & 0x1) != (pbits & 0x1)) {
-          kb_send_key(j + 0xe0, rbits & 0x1, report[0]);
+        if((rbits & 1) != (pbits & 1)) {
+          kb_send_key(HID_KEY_CONTROL_LEFT + j, rbits & 1, report[0]);
         }
         
         rbits = rbits >> 1;
@@ -216,7 +228,7 @@ void kb_receive(u8 byte, u8 prev_byte) {
     case 0xf3: // Set typematic rate and delay
       repeat_us = repeats[byte & 0x1f];
       delay_ms = delays[(byte & 0x60) >> 5];
-      ps2pt_set(&kb_pt, 0xf3, byte);
+      ps2in_set(&kb_in, 0xf3, byte);
     break;
     
     default:
@@ -255,27 +267,13 @@ void kb_receive(u8 byte, u8 prev_byte) {
 }
 
 bool kb_task() {
-  ps2pt_task(&kb_pt, &kb_phy);
-  ps2phy_task(&kb_phy);
-  
-  if(repeating) {
-    repeating = false;
-    
-    if(repeat) {
-      kb_maybe_send_e0(repeat);
-      if(repeat >= 0xe0 && repeat <= 0xe7) {
-        kb_send(mod2ps2[repeat - 0xe0]);
-      } else {
-        kb_send(hid2ps2[repeat]);
-      }
-    }
-  }
-  
-  return kb_enabled && !kb_phy.busy;
+  ps2out_task(&kb_out);
+  ps2in_task(&kb_in, &kb_out);  
+  return kb_enabled && !kb_out.busy;
 }
 
-void kb_init(u8 gpio, u8 passthru) {
-  ps2phy_init(&kb_phy, pio0, gpio, &kb_receive);
-  ps2pt_init(&kb_pt, pio1, passthru);
+void kb_init(u8 gpio_out, u8 gpio_in) {
+  ps2out_init(&kb_out, pio0, gpio_out, &kb_receive);
+  ps2in_init(&kb_in, pio1, gpio_in);
   kb_reset();
 }

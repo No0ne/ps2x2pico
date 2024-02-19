@@ -6,17 +6,15 @@
 
 .program ps2in
 
-start:
-
 receivecheck:
   jmp    pin, sendcheck
   set    x, 9
 
-bitloop:
+receiveloop:
   wait   0 pin, 1
   in     pins, 1
   wait   1 pin, 1
-  jmp    x--, bitloop
+  jmp    x--, receiveloop
 
   wait   0 pin, 1
   set    pindirs, 1             [7]
@@ -26,7 +24,7 @@ bitloop:
   nop                           [7]
   nop                           [7]
   set    pindirs, 0
-  jmp start
+  jmp    receivecheck
 
 sendcheck:
   jmp    !osre, send
@@ -45,13 +43,11 @@ sendloop:
   jmp    x--, sendloop
   wait   0 pin, 1
   wait   1 pin, 1
-  jmp start
 
 % c-sdk {
-  void ps2in_program_init(PIO pio, uint sm, uint offset) {
+  void ps2in_program_init(PIO pio, uint sm, uint offset, uint dat) {
     pio_sm_config c = ps2in_program_get_default_config(offset);
     
-    u8 dat = 3;
     u8 clk = dat + 1;
     pio_gpio_init(pio, clk);
     pio_gpio_init(pio, dat);

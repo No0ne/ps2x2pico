@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,8 +28,6 @@
 #include "bsp/board.h"
 #include "tusb.h"
 #include "ps2x2pico.h"
-
-#include "ps2in.pio.h"
 
 u8 kb_addr = 0;
 u8 kb_inst = 0;
@@ -92,64 +90,24 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
   board_led_write(0);
 }
 
-int sm;
-u8 next;
-bool bnext = false;
-
 void main() {
   board_init();
   printf("\n%s-%s\n", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING);
   
-  gpio_init(LVPWR);
-  gpio_set_dir(LVPWR, GPIO_OUT);
-  gpio_put(LVPWR, 1);
-  
-  u8 inpwr = 18;
-  gpio_init(inpwr);
-  gpio_set_dir(inpwr, GPIO_OUT);
-  gpio_put(inpwr, 1);
+  gpio_init(LVOUT);
+  gpio_init(LVIN);
+  gpio_set_dir(LVOUT, GPIO_OUT);
+  gpio_set_dir(LVIN, GPIO_OUT);
+  gpio_put(LVOUT, 1);
+  gpio_put(LVIN, 1);
   
   tusb_init();
-  kb_init(KBDAT);
-  ms_init(MSDAT);
+  kb_init(KBOUT, KBIN);
+  ms_init(MSOUT, MSIN);
   
-  sm = pio_claim_unused_sm(pio1, true);
-  ps2in_program_init(pio1, sm, pio_add_program(pio1, &ps2in_program));
-  bool leds = false;
   while(1) {
     tuh_task();
     kb_task();
     ms_task();
-    
-    if(!pio_sm_is_rx_fifo_empty(pio1, sm)) {
-      u8 b = pio_sm_get(pio1, sm) >> 23;
-      printf("%08x\n", b);
-      
-      if(b < 0x80 || b == 0x83 || b == 0x84 || b == 0xe0 || b == 0xf0) {
-        kb_send(b);
-      }
-      
-      if(b == 0xfa && bnext) {
-        bnext = false;
-        pio_sm_put(pio1, sm, ps2phy_frame(next));
-      }
-      
-    }
   }
-}
-
-void inreset() {
-  pio_sm_put(pio1, sm, ps2phy_frame(0xff));
-}
-
-void inleds(u8 byte) {
-  pio_sm_put(pio1, sm, ps2phy_frame(0xed));
-  next = byte;
-  bnext = true;
-}
-
-void intmrd(u8 byte) {
-  pio_sm_put(pio1, sm, ps2phy_frame(0xf3));
-  next = byte;
-  bnext = true;
 }

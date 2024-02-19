@@ -23,39 +23,52 @@
  *
  */
  
-#include "ps2phy.h"
-#include "ps2pt.h"
-#include "ps2pt.pio.h"
+#include "ps2out.h"
+#include "ps2in.h"
+#include "ps2in.pio.h"
 
-bool send_next = false;
-u8 byte_next = 0;
+s8 ps2in_prog = -1;
 
-void ps2pt_init(ps2pt* this, PIO pio, u8 data_pin) {
+void ps2in_init(ps2in* this, PIO pio, u8 data_pin) {
+  if(ps2in_prog == -1) {
+    ps2in_prog = pio_add_program(pio, &ps2in_program);
+  }
+
   this->sm = pio_claim_unused_sm(pio, true);
-  ps2pt_program_init(pio, this->sm, pio_add_program(pio, &ps2pt_program), data_pin);
+  ps2in_program_init(pio, this->sm, ps2in_prog, data_pin);
   this->pio = pio;
 }
 
-void ps2pt_task(ps2pt* this, ps2phy* out) {
+void ps2in_task(ps2in* this, ps2out* out) {
   if(!pio_sm_is_rx_fifo_empty(this->pio, this->sm)) {
     u8 byte = pio_sm_get(this->pio, this->sm) >> 23;
     
-    if(byte < 0x80 || byte == 0x83 || byte == 0x84 || byte == 0xe0 || byte == 0xf0) {
+    printf("%02x %02x\n", this->sm, byte);
+    
+    if(byte == 0x00 && this->byte_next == 0xaa) {
+      pio_sm_put(this->pio, this->sm, ps2_frame(0xf4));
+    } else { //if(byte != 0xfa) {
+      queue_try_add(&out->qbytes, &byte);
+    }
+    
+    this->byte_next = byte;
+    
+    /*if(byte < 0x80 || byte == 0x83 || byte == 0x84 || byte == 0xe0 || byte == 0xf0) {
       queue_try_add(&out->qbytes, &byte);
       
     } else if(byte == 0xfa && this->send_next) {
       this->send_next = false;
-      pio_sm_put(this->pio, this->sm, ps2phy_frame(this->byte_next));
-    }
+      pio_sm_put(this->pio, this->sm, ps2_frame(this->byte_next));
+    }*/
   }
 }
 
-void ps2pt_reset(ps2pt* this) {
-  pio_sm_put(this->pio, this->sm, ps2phy_frame(0xff));
+void ps2in_reset(ps2in* this) {
+  pio_sm_put(this->pio, this->sm, ps2_frame(0xff));
 }
 
-void ps2pt_set(ps2pt* this, u8 command, u8 byte) {
-  pio_sm_put(this->pio, this->sm, ps2phy_frame(command));
+void ps2in_set(ps2in* this, u8 command, u8 byte) {
+  pio_sm_put(this->pio, this->sm, ps2_frame(command));
   this->byte_next = byte;
   this->send_next = true;
 }

@@ -1,8 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
- *           (c) 2023 Dustin Hoffman
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,23 +24,16 @@
  */
 
 #include "hardware/pio.h"
-#include "pico/util/queue.h"
 #include "ps2x2pico.h"
-
-typedef void (*rx_callback)(u8 byte, u8 prev_byte);
 
 typedef struct {
   PIO pio;
   uint sm;
-  queue_t qbytes;
-  queue_t qpacks;
-  rx_callback rx;
-  u8 last_rx;
-  u8 last_tx;
-  u8 sent;
-  u8 busy;
-} ps2phy;
+  bool send_next;
+  u8 byte_next;
+} ps2in;
 
-void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx);
-void ps2phy_task(ps2phy* this);
-u32 ps2phy_frame(u8 byte);
+void ps2in_init(ps2in* this, PIO pio, u8 data_pin);
+void ps2in_task(ps2in* this, ps2out* out);
+void ps2in_reset(ps2in* this);
+void ps2in_set(ps2in* this, u8 command, u8 byte);
