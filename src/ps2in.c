@@ -45,11 +45,11 @@ void ps2in_task(ps2in* this, ps2out* out) {
     
     printf("%02x %02x\n", this->sm, byte);
     
-    if(byte == 0x00 && this->byte_next == 0xaa) {
+    /* if(byte == 0x00 && this->byte_next == 0xaa) {
       pio_sm_put(this->pio, this->sm, ps2_frame(0xf4));
     } else { //if(byte != 0xfa) {
       queue_try_add(&out->qbytes, &byte);
-    }
+    } */
     
     this->byte_next = byte;
     

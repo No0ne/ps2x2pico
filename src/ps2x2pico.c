@@ -57,7 +57,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
     
     case HID_ITF_PROTOCOL_MOUSE:
       printf("HID Interface Protocol = Mouse\n");
-      //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+      tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
       tuh_hid_receive_report(dev_addr, instance);
     break;
   }
