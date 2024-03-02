@@ -30,6 +30,11 @@ ps2phy ms_phy;
 bool ms_streaming = false;
 u32 ms_magic_seq = 0;
 u8 ms_type = 0;
+u8 ms_rate = 60;
+u8 ms_db = 0;
+s8 ms_dx = 0;
+s8 ms_dy = 0;
+s8 ms_dz = 0;
 
 void ms_send(u8 byte) {
   queue_try_add(&ms_phy.qbytes, &byte);
@@ -76,14 +81,33 @@ void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
   }
 }
 
+s64 ms_send_callback() {
+  if(!ms_streaming) {
+    return 0;
+  }
+  
+  if(!ms_out.busy) {
+    ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz, ms_dz);
+    ms_dx = 0;
+    ms_dy = 0;
+    ms_dz = 0;
+  }
+  
+  return 1000000 / ms_rate;
+}
+
 void ms_usb_receive(u8 const* report) {
-  ms_send_packet(report[0], report[1], report[2], report[3], report[3]);
+  ms_db = report[0];
+  ms_dx += report[1];
+  ms_dy += report[2];
+  ms_dz += report[3];
 }
 
 void ms_receive(u8 byte, u8 prev_byte) {
   switch (prev_byte) {
     case 0xf3: // Set Sample Rate
-      ms_magic_seq = ((ms_magic_seq << 8) | byte) & 0xffffff;
+      ms_rate = byte;
+      ms_magic_seq = ((ms_magic_seq << 8) | ms_rate) & 0xffffff;
       
       if(ms_type == 0 && ms_magic_seq == 0xc86450) {
         ms_type = 3;
@@ -97,6 +121,11 @@ void ms_receive(u8 byte, u8 prev_byte) {
         case 0xff: // Reset
           ms_streaming = false;
           ms_type = 0;
+          ms_rate = 60;
+          ms_db = 0;
+          ms_dx = 0;
+          ms_dy = 0;
+          ms_dz = 0;
           
           ms_send(0xfa);
           ms_send(0xaa);
@@ -106,6 +135,11 @@ void ms_receive(u8 byte, u8 prev_byte) {
         case 0xf6: // Set Defaults
           ms_streaming = false;
           ms_type = 0;
+          ms_rate = 60;
+          ms_db = 0;
+          ms_dx = 0;
+          ms_dy = 0;
+          ms_dz = 0;
         break;
         
         case 0xf5: // Disable Data Reporting
@@ -115,6 +149,7 @@ void ms_receive(u8 byte, u8 prev_byte) {
         
         case 0xf4: // Enable Data Reporting
           ms_streaming = true;
+          add_alarm_in_ms(100, ms_send_callback, NULL, false);
         break;
         
         case 0xf2: // Get Device ID
@@ -126,7 +161,7 @@ void ms_receive(u8 byte, u8 prev_byte) {
           ms_send(0xfa);
           ms_send(0x00); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
           ms_send(0x02); // Resolution
-          ms_send(100);  // Sample Rate
+          ms_send(ms_rate); // Sample Rate
         return;
         
         // TODO: Implement (more of) these?
