@@ -37,7 +37,7 @@ u8 ms_rate = 60;
 u8 ms_db = 0;
 s16 ms_dx = 0;
 s16 ms_dy = 0;
-s16 ms_dz = 0;
+s8 ms_dz = 0;
 
 void ms_send(u8 byte) {
   queue_try_add(&ms_out.qbytes, &byte);
@@ -48,15 +48,29 @@ void ms_reset() {
   ms_send(0x00);
 }
 
-void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
+u8 ms_clamp_xyz(s16 xyz) {
+  if(xyz < -255) return 1;
+  if(xyz > 255) return 255;
+  return xyz;
+}
+
+s16 ms_remain_xyz(s16 xyz) {
+  if(xyz < -255) return xyz + 255;
+  if(xyz > 255) return xyz - 255;
+  return 0;
+}
+
+void ms_send_packet(u8 buttons, s16 x, s16 y, s8 h, s8 v) {
   if(ms_streaming) {
     u8 byte1 = 0x08 | (buttons & 0x07);
-    s8 byte2 = x;
-    s8 byte3 = 0x100 - y;
+    u8 byte2 = ms_clamp_xyz(x);
+    u8 byte3 = 0x100 - ms_clamp_xyz(y);
     s8 byte4 = 0x100 - v;
     
-    if(byte2 < 0) byte1 |= 0x10;
-    if(byte3 < 0) byte1 |= 0x20;
+    if(x < 0) byte1 |= 0x10;
+    if(y > 0) byte1 |= 0x20;
+    if(byte2 == 0xaa) byte2 = 0xab;
+    if(byte3 == 0xaa) byte3 = 0xab;
     
     ms_send(byte1);
     ms_send(byte2);
@@ -84,28 +98,16 @@ void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
   }
 }
 
-s8 ms_clamp_xyz(s16 xyz) {
-  if(xyz > 127) return 127;
-  if(xyz < -128) return -128;
-  return xyz;
-}
-
-s16 ms_remain_xyz(s16 xyz) {
-  if(xyz > 127) return xyz - 127;
-  if(xyz < -128) return xyz + 128;
-  return 0;
-}
-
 s64 ms_send_callback() {
   if(!ms_streaming) {
     return 0;
   }
   
   if(!ms_out.busy) {
-    ms_send_packet(ms_db, ms_clamp_xyz(ms_dx), ms_clamp_xyz(ms_dy), ms_clamp_xyz(ms_dz), ms_clamp_xyz(ms_dz));
+    ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz, ms_dz);
     ms_dx = ms_remain_xyz(ms_dx);
     ms_dy = ms_remain_xyz(ms_dy);
-    ms_dz = ms_remain_xyz(ms_dz);
+    ms_dz = 0;
   }
   
   return 1000000 / ms_rate;
@@ -113,9 +115,9 @@ s64 ms_send_callback() {
 
 void ms_usb_receive(u8 const* report) {
   ms_db = report[0];
-  ms_dx += report[1];
-  ms_dy += report[2];
-  ms_dz += report[3];
+  ms_dx += (s8)report[1];
+  ms_dy += (s8)report[2];
+  ms_dz += (s8)report[3];
 }
 
 void ms_receive(u8 byte, u8 prev_byte) {
