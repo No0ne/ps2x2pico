@@ -35,9 +35,9 @@ u32 ms_magic_seq = 0;
 u8 ms_type = 0;
 u8 ms_rate = 60;
 u8 ms_db = 0;
-s8 ms_dx = 0;
-s8 ms_dy = 0;
-s8 ms_dz = 0;
+s16 ms_dx = 0;
+s16 ms_dy = 0;
+s16 ms_dz = 0;
 
 void ms_send(u8 byte) {
   queue_try_add(&ms_out.qbytes, &byte);
@@ -84,16 +84,28 @@ void ms_send_packet(u8 buttons, s8 x, s8 y, s8 h, s8 v) {
   }
 }
 
+s8 ms_clamp_xyz(s16 xyz) {
+  if(xyz > 127) return 127;
+  if(xyz < -128) return -128;
+  return xyz;
+}
+
+s16 ms_remain_xyz(s16 xyz) {
+  if(xyz > 127) return xyz - 127;
+  if(xyz < -128) return xyz + 128;
+  return 0;
+}
+
 s64 ms_send_callback() {
   if(!ms_streaming) {
     return 0;
   }
   
   if(!ms_out.busy) {
-    ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz, ms_dz);
-    ms_dx = 0;
-    ms_dy = 0;
-    ms_dz = 0;
+    ms_send_packet(ms_db, ms_clamp_xyz(ms_dx), ms_clamp_xyz(ms_dy), ms_clamp_xyz(ms_dz), ms_clamp_xyz(ms_dz));
+    ms_dx = ms_remain_xyz(ms_dx);
+    ms_dy = ms_remain_xyz(ms_dy);
+    ms_dz = ms_remain_xyz(ms_dz);
   }
   
   return 1000000 / ms_rate;
