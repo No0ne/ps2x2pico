@@ -30,7 +30,7 @@
 s8 prog = -1;
 bool locked = false;
 
-int64_t unlock_callback() {
+s64 unlock_callback() {
   locked = false;
   return 0;
 }

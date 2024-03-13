@@ -64,7 +64,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
 }
 
 void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
-  printf("HID device address = %d, instance = %d is unmounted\r\n", dev_addr, instance);
+  printf("HID device address = %d, instance = %d is unmounted\n", dev_addr, instance);
   
   if(dev_addr == kb_addr && instance == kb_inst) {
     kb_addr = 0;

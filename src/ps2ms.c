@@ -95,7 +95,7 @@ void ms_send_packet(u8 buttons, s16 x, s16 y, s8 h, s8 v) {
   }
 }
 
-int64_t ms_send_callback() {
+s64 ms_send_callback() {
   if(!ms_streaming) {
     return 0;
   }
