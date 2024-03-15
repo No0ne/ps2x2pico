@@ -80,7 +80,7 @@ void kb_set_leds(u8 byte) {
 
 s64 blink_callback() {
   if(blinking) {
-    kb_set_leds(7);
+    kb_set_leds(KEYBOARD_LED_NUMLOCK | KEYBOARD_LED_CAPSLOCK | KEYBOARD_LED_SCROLLLOCK);
     blinking = false;
     return 500000;
   }
@@ -101,7 +101,7 @@ void kb_reset() {
   delay_ms = 500;
   repeat = 0;
   blinking = true;
-  add_alarm_in_ms(1, blink_callback, NULL, false);
+  add_alarm_in_ms(100, blink_callback, NULL, false);
 }
 
 s64 repeat_callback() {

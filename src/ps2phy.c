@@ -28,12 +28,7 @@
 #include "ps2phy.pio.h"
 
 s8 prog = -1;
-bool locked = false;
-
-s64 unlock_callback() {
-  locked = false;
-  return 0;
-}
+u8 locked = 0;
 
 u32 ps2phy_frame(u8 byte) {
   bool parity = 1;
@@ -88,7 +83,9 @@ void ps2phy_task(ps2phy* this) {
     pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
-  if(!queue_is_empty(&this->qpacks) && pio_sm_is_tx_fifo_empty(this->pio, this->sm) && !this->busy && !locked) {
+  if(locked) locked--;
+  
+  if(!queue_is_empty(&this->qpacks) && !this->busy && !locked) {
     if(queue_try_peek(&this->qpacks, &pack)) {
       if(this->sent == pack[0]) {
         this->sent = 0;
@@ -97,8 +94,7 @@ void ps2phy_task(ps2phy* this) {
         this->sent++;
         this->last_tx = pack[this->sent];
         this->busy |= 2;
-        locked = true;
-        add_alarm_in_ms(1, unlock_callback, NULL, false);
+        locked = 255;
         pio_sm_put(this->pio, this->sm, ps2phy_frame(this->last_tx));
       }
     }
