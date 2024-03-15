@@ -26,6 +26,7 @@
 
 #include "tusb.h"
 #include "ps2phy.h"
+#include "macphy.pio.h"
 ps2phy kb_phy;
 
 u8 const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
@@ -121,8 +122,26 @@ s64 repeat_callback() {
   return 0;
 }
 
+u8 buf = 0x7b;
+
+u8 const hid2mac[] = {
+  0x7b, 0x7b, 0x7b, 0x7b, 0x01, 0x17, 0x11, 0x05, 0x1d, 0x07, 0x0b, 0x09, 0x45, 0x4d, 0x51, 0x4b,
+  0x5d, 0x5b, 0x3f, 0x47, 0x19, 0x1f, 0x03, 0x23, 0x41, 0x13, 0x1b, 0x0f, 0x21, 0x0d, 0x25, 0x27,
+  0x29, 0x2b, 0x2f, 0x2d, 0x35, 0x39, 0x33, 0x3b, 0x49, 0x7b, 0x67, 0x61, 0x63, 0x37, 0x31, 0x43,
+  0x3d, 0x55
+};
+
 void kb_send_key(u8 key, bool state, u8 modifiers) {
-  if(!kb_enabled) return;
+  
+  if(key > sizeof(hid2mac)) return;
+  
+  if(state) {
+    buf = hid2mac[key];
+  } else {
+    buf = hid2mac[key] | 0x80;
+  }
+  
+  /* if(!kb_enabled) return;
   if(key > HID_KEY_F24 &&
      key < HID_KEY_CONTROL_LEFT ||
      key > HID_KEY_GUI_RIGHT) return;
@@ -158,7 +177,7 @@ void kb_send_key(u8 key, bool state, u8 modifiers) {
     kb_send(mod2ps2[key - HID_KEY_CONTROL_LEFT]);
   } else {
     kb_send(hid2ps2[key]);
-  }
+  } */
 }
 
 void kb_usb_receive(u8 const* report) {
@@ -261,11 +280,42 @@ void kb_receive(u8 byte, u8 prev_byte) {
 }
 
 bool kb_task() {
-  ps2phy_task(&kb_phy);
+  //ps2phy_task(&kb_phy);
+  
+  if(!pio_sm_is_rx_fifo_empty(pio0, 0)) {
+    u32 fifo = pio_sm_get(pio0, 0);
+    printf("%02x ", fifo);
+    
+    u32 bb;
+    
+    switch(fifo) {
+      case 0x10:
+      case 0x14:
+        bb = buf << 24;
+        if(buf != 0x7b) printf("%02x  ", buf);
+        buf = 0x7b;
+        pio_sm_put(pio0, 0, bb);
+      break;
+      
+      case 0x16:
+        bb = 0x0b << 24;
+        printf("%02x  ", bb);
+        pio_sm_put(pio0, 0, bb);
+      break;
+      
+      case 0x36:
+        bb = 0x7d << 24;
+        printf("%02x  ", bb);
+        pio_sm_put(pio0, 0, bb);
+      break;
+    }
+  }
+  
   return kb_enabled && !kb_phy.busy;
 }
 
 void kb_init(u8 gpio) {
-  ps2phy_init(&kb_phy, pio0, gpio, &kb_receive);
-  kb_reset();
+  //ps2phy_init(&kb_phy, pio0, gpio, &kb_receive);
+  //kb_reset();
+  macphy_program_init(pio0, pio_claim_unused_sm(pio0, true), pio_add_program(pio0, &macphy_program), 11);
 }

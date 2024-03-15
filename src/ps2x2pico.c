@@ -100,12 +100,12 @@ void main() {
   
   tusb_init();
   kb_init(KBDAT);
-  ms_init(MSDAT);
+  //ms_init(MSDAT);
   
   while(1) {
     tuh_task();
     kb_task();
-    ms_task();
+    //ms_task();
   }
 }
 
