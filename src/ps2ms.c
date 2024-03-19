@@ -31,21 +31,31 @@ ps2out ms_out;
 ps2in ms_in;
 
 bool ms_streaming = false;
+bool ms_ismoving = false;
 u32 ms_magic_seq = 0;
 u8 ms_type = 0;
-u8 ms_rate = 60;
+u8 ms_rate = 100;
 u8 ms_db = 0;
 s16 ms_dx = 0;
 s16 ms_dy = 0;
 s8 ms_dz = 0;
 
+void ms_reset() {
+  ms_ismoving = false;
+  ms_db = 0;
+  ms_dx = 0;
+  ms_dy = 0;
+  ms_dz = 0;
+}
+
 void ms_send(u8 byte) {
   queue_try_add(&ms_out.qbytes, &byte);
 }
 
-void ms_reset() {
+s64 ms_reset_callback() {
   ms_send(0xaa);
-  ms_send(0x00);
+  ms_send(ms_type);
+  return 0;
 }
 
 u8 ms_clamp_xyz(s16 xyz) {
@@ -61,49 +71,54 @@ s16 ms_remain_xyz(s16 xyz) {
 }
 
 void ms_send_packet(u8 buttons, s16 x, s16 y, s8 h, s8 v) {
-  if(ms_streaming) {
-    u8 byte1 = 0x08 | (buttons & 0x07);
-    u8 byte2 = ms_clamp_xyz(x);
-    u8 byte3 = 0x100 - ms_clamp_xyz(y);
-    s8 byte4 = 0x100 - v;
-    
-    if(x < 0) byte1 |= 0x10;
-    if(y > 0) byte1 |= 0x20;
-    if(byte2 == 0xaa) byte2 = 0xab;
-    if(byte3 == 0xaa) byte3 = 0xab;
-    
-    ms_send(byte1);
-    ms_send(byte2);
-    ms_send(byte3);
-    
-    if(ms_type == 3 || ms_type == 4) {
-      if(h == v) {
-        if(byte4 < -8) byte4 = -8;
-        if(byte4 > 7) byte4 = 7;
-        if(byte4 < 0) byte4 |= 0xf8;
-      } else {
-        if(v < 0) byte4 = 0x01;
-        if(v > 0) byte4 = 0xff;
-        if(h < 0) byte4 = 0x02;
-        if(h > 0) byte4 = 0xfe;
-      }
-      
-      if(ms_type == 4) {
-        byte4 &= 0x0f;
-        byte4 |= (buttons << 1) & 0x30;
-      }
-      
-      ms_send(byte4);
+  if(!ms_streaming) return;
+  
+  if(!buttons && !x && !y && !h && !v) {
+    if(!ms_ismoving) return;
+    ms_ismoving = false;
+  } else {
+    ms_ismoving = true;
+  }
+  
+  u8 byte1 = 0x08 | (buttons & 0x07);
+  u8 byte2 = ms_clamp_xyz(x);
+  u8 byte3 = 0x100 - ms_clamp_xyz(y);
+  s8 byte4 = 0x100 - v;
+  
+  if(x < 0) byte1 |= 0x10;
+  if(y > 0) byte1 |= 0x20;
+  if(byte2 == 0xaa) byte2 = 0xab;
+  if(byte3 == 0xaa) byte3 = 0xab;
+  
+  ms_send(byte1);
+  ms_send(byte2);
+  ms_send(byte3);
+  
+  if(ms_type == 3 || ms_type == 4) {
+    if(h == v) {
+      if(byte4 < -8) byte4 = -8;
+      if(byte4 > 7) byte4 = 7;
+      if(byte4 < 0) byte4 |= 0xf8;
+    } else {
+      if(v < 0) byte4 = 0x01;
+      if(v > 0) byte4 = 0xff;
+      if(h < 0) byte4 = 0x02;
+      if(h > 0) byte4 = 0xfe;
     }
+    
+    if(ms_type == 4) {
+      byte4 &= 0x0f;
+      byte4 |= (buttons << 1) & 0x30;
+    }
+    
+    ms_send(byte4);
   }
 }
 
 s64 ms_send_callback() {
-  if(!ms_streaming) {
-    return 0;
-  }
+  if(!ms_streaming) return 0;
   
-  if(!ms_out.busy) {
+  if(!ms_phy.busy) {
     ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz, ms_dz);
     ms_dx = ms_remain_xyz(ms_dx);
     ms_dy = ms_remain_xyz(ms_dy);
@@ -131,64 +146,48 @@ void ms_receive(u8 byte, u8 prev_byte) {
       } else if(ms_type == 3 && ms_magic_seq == 0xc8c850) {
         ms_type = 4;
       }
+      
+      ms_reset();
     break;
     
     default:
-      switch (byte) {
+      switch(byte) {
         case 0xff: // Reset
-          ms_streaming = false;
+          add_alarm_in_ms(100, ms_reset_callback, NULL, false);
           ms_type = 0;
-          ms_rate = 60;
-          ms_db = 0;
-          ms_dx = 0;
-          ms_dy = 0;
-          ms_dz = 0;
-          
-          ms_send(0xfa);
-          ms_send(0xaa);
-          ms_send(ms_type);
-        return;
-        
         case 0xf6: // Set Defaults
-          ms_streaming = false;
-          ms_type = 0;
-          ms_rate = 60;
-          ms_db = 0;
-          ms_dx = 0;
-          ms_dy = 0;
-          ms_dz = 0;
-        break;
-        
+          ms_rate = 100;
         case 0xf5: // Disable Data Reporting
-        case 0xea: // Set Stream Mode
           ms_streaming = false;
+          ms_reset();
         break;
         
         case 0xf4: // Enable Data Reporting
           ms_streaming = true;
+          ms_reset();
           add_alarm_in_ms(100, ms_send_callback, NULL, false);
         break;
         
         case 0xf2: // Get Device ID
           ms_send(0xfa);
           ms_send(ms_type);
+          ms_reset();
         return;
+        
+        case 0xeb: // Read Data
+          ms_ismoving = true;
+        break;
         
         case 0xe9: // Status Request
           ms_send(0xfa);
-          ms_send(0x00); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
+          ms_send(ms_streaming << 5); // Bit6: Mode, Bit 5: Enable, Bit 4: Scaling, Bits[2,1,0] = Buttons[L,M,R]
           ms_send(0x02); // Resolution
           ms_send(ms_rate); // Sample Rate
         return;
         
-        // TODO: Implement (more of) these?
-        // case 0xf0: // Set Remote Mode
-        // case 0xee: // Set Wrap Mode
-        // case 0xec: // Reset Wrap Mode
-        // case 0xeb: // Read Data
-        // case 0xe8: // Set Resolution
-        // case 0xe7: // Set Scaling 2:1
-        // case 0xe6: // Set Scaling 1:1
+        default:
+          ms_reset();
+        break;
       }
     break;
   }
@@ -205,5 +204,5 @@ bool ms_task() {
 void ms_init(u8 gpio_out, u8 gpio_in) {
   ps2out_init(&ms_out, pio0, gpio_out, &ms_receive);
   ps2in_init(&ms_in, pio1, gpio_in);
-  ms_reset();
+  ms_reset_callback();
 }

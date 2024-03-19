@@ -5,9 +5,7 @@ USB keyboard/mouse to PS/2 interface converter using a Raspberry Pi Pico
 |![hw1](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/doc/hw1.jpg) |![hw2](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/doc/hw2.jpg) |![hw3](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/doc/hw3.jpg) |![hw4](https://raw.githubusercontent.com/No0ne/ps2x2pico/main/doc/hw4.jpg) |
 |-|-|-|-|
 
-Keyboard only variant: https://github.com/No0ne/ps2pico
-
-PC-XT variant: https://github.com/No0ne/ps2pico/tree/xt-version
+Keyboard only (incl. PC-XT) variant: https://github.com/No0ne/ps2pico
 
 [PicoMiteVGA](https://geoffg.net/picomitevga.html) variant: https://github.com/No0ne/hid2cdc
 

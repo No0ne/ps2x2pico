@@ -24,16 +24,11 @@
  *
  */
  
-#include "ps2out.h"
-#include "ps2out.pio.h"
+#include "ps2phy.h"
+#include "ps2phy.pio.h"
 
 s8 ps2out_prog = -1;
-bool ps2out_locked = false;
-
-s64 unlock_callback() {
-  ps2out_locked = false;
-  return 0;
-}
+u8 ps2out_locked = 0;
 
 u32 ps2_frame(u8 byte) {
   bool parity = 1;
@@ -88,7 +83,9 @@ void ps2out_task(ps2out* this) {
     pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
-  if(!queue_is_empty(&this->qpacks) && pio_sm_is_tx_fifo_empty(this->pio, this->sm) && !this->busy && !ps2out_locked) {
+  if(ps2out_locked) locked--;
+  
+  if(!queue_is_empty(&this->qpacks) && !this->busy && !ps2out_locked) {
     if(queue_try_peek(&this->qpacks, &pack)) {
       if(this->sent == pack[0]) {
         this->sent = 0;
@@ -97,8 +94,7 @@ void ps2out_task(ps2out* this) {
         this->sent++;
         this->last_tx = pack[this->sent];
         this->busy |= 2;
-        ps2out_locked = true;
-        add_alarm_in_ms(1, unlock_callback, NULL, false);
+        ps2out_locked = 255;
         pio_sm_put(this->pio, this->sm, ps2_frame(this->last_tx));
       }
     }
