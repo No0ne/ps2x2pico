@@ -5,6 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(PICO_BOARD pico CACHE STRING "Board type")
 
+set(MS_RATE_DEFAULT 100 CACHE STRING "Default mouse sample rate")
+set(MS_RATE_HOST_CONTROL ON CACHE BOOL "Allow the host to configure the mouse sample rate")
+
 # Pull in Raspberry Pi Pico SDK
 include(pico_sdk_import.cmake)
 
@@ -25,6 +28,11 @@ add_compile_definitions(LVPWR=13) # Level shifter pull-up voltage
 add_compile_definitions(KBDAT=11) # Keyboard data pin, clock pin is 12 (data pin+1)
 add_compile_definitions(MSDAT=14) # Mouse data pin, clock pin is 15 (data pin+1)
 add_compile_definitions(PICO_PANIC_FUNCTION=reset)
+
+add_compile_definitions(MS_RATE_DEFAULT=${MS_RATE_DEFAULT})
+if (MS_RATE_HOST_CONTROL)
+    add_compile_definitions(MS_RATE_HOST_CONTROL)
+endif()
 
 pico_set_program_name(ps2x2pico "ps2x2pico")
 pico_set_program_version(ps2x2pico "1.0")

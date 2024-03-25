@@ -31,7 +31,7 @@ bool ms_streaming = false;
 bool ms_ismoving = false;
 u32 ms_magic_seq = 0;
 u8 ms_type = 0;
-u8 ms_rate = 100;
+u8 ms_rate = MS_RATE_DEFAULT;
 u8 ms_db = 0;
 s16 ms_dx = 0;
 s16 ms_dy = 0;
@@ -135,8 +135,11 @@ void ms_usb_receive(u8 const* report) {
 void ms_receive(u8 byte, u8 prev_byte) {
   switch (prev_byte) {
     case 0xf3: // Set Sample Rate
-      ms_rate = byte;
-      ms_magic_seq = ((ms_magic_seq << 8) | ms_rate) & 0xffffff;
+      #ifdef MS_RATE_HOST_CONTROL
+        ms_rate = byte;
+      #endif
+
+      ms_magic_seq = ((ms_magic_seq << 8) | byte) & 0xffffff;
       
       if(ms_type == 0 && ms_magic_seq == 0xc86450) {
         ms_type = 3;
@@ -153,7 +156,7 @@ void ms_receive(u8 byte, u8 prev_byte) {
           add_alarm_in_ms(100, ms_reset_callback, NULL, false);
           ms_type = 0;
         case 0xf6: // Set Defaults
-          ms_rate = 100;
+          ms_rate = MS_RATE_DEFAULT;
         case 0xf5: // Disable Data Reporting
           ms_streaming = false;
           ms_reset();
