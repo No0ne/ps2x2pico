@@ -27,6 +27,11 @@
 #include "ps2phy.h"
 ps2phy ms_phy;
 
+#ifndef MS_RATE_DEFAULT
+  #define MS_RATE_HOST_CONTROL
+  #define MS_RATE_DEFAULT 100
+#endif
+
 bool ms_streaming = false;
 bool ms_ismoving = false;
 u32 ms_magic_seq = 0;
@@ -67,10 +72,10 @@ s16 ms_remain_xyz(s16 xyz) {
   return 0;
 }
 
-void ms_send_packet(u8 buttons, s16 x, s16 y, s8 h, s8 v) {
+void ms_send_packet(u8 buttons, s16 x, s16 y, s8 z) {
   if(!ms_streaming) return;
   
-  if(!buttons && !x && !y && !h && !v) {
+  if(!buttons && !x && !y && !z) {
     if(!ms_ismoving) return;
     ms_ismoving = false;
   } else {
@@ -80,7 +85,7 @@ void ms_send_packet(u8 buttons, s16 x, s16 y, s8 h, s8 v) {
   u8 byte1 = 0x08 | (buttons & 0x07);
   u8 byte2 = ms_clamp_xyz(x);
   u8 byte3 = 0x100 - ms_clamp_xyz(y);
-  s8 byte4 = 0x100 - v;
+  s8 byte4 = 0x100 - z;
   
   if(x < 0) byte1 |= 0x10;
   if(y > 0) byte1 |= 0x20;
@@ -92,16 +97,8 @@ void ms_send_packet(u8 buttons, s16 x, s16 y, s8 h, s8 v) {
   ms_send(byte3);
   
   if(ms_type == 3 || ms_type == 4) {
-    if(h == v) {
-      if(byte4 < -8) byte4 = -8;
-      if(byte4 > 7) byte4 = 7;
-      if(byte4 < 0) byte4 |= 0xf8;
-    } else {
-      if(v < 0) byte4 = 0x01;
-      if(v > 0) byte4 = 0xff;
-      if(h < 0) byte4 = 0x02;
-      if(h > 0) byte4 = 0xfe;
-    }
+    if(byte4 < -8) byte4 = -8;
+    if(byte4 > 7) byte4 = 7;
     
     if(ms_type == 4) {
       byte4 &= 0x0f;
@@ -116,13 +113,20 @@ s64 ms_send_callback() {
   if(!ms_streaming) return 0;
   
   if(!ms_phy.busy) {
-    ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz, ms_dz);
+    ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz);
     ms_dx = ms_remain_xyz(ms_dx);
     ms_dy = ms_remain_xyz(ms_dy);
     ms_dz = 0;
   }
   
   return 1000000 / ms_rate;
+}
+
+void ms_send_movement(u8 buttons, s8 x, s8 y, s8 z) {
+  ms_db = buttons;
+  ms_dx += x;
+  ms_dy += y;
+  ms_dz += z;
 }
 
 void ms_usb_receive(u8 const* report) {
