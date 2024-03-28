@@ -65,12 +65,12 @@ void kb_send(u8 byte) {
 
 void kb_maybe_send_e0(u8 key) {
   if(key == HID_KEY_PRINT_SCREEN ||
-     key >= HID_KEY_INSERT && key <= HID_KEY_ARROW_UP ||
+    (key >= HID_KEY_INSERT && key <= HID_KEY_ARROW_UP) ||
      key == HID_KEY_KEYPAD_DIVIDE ||
      key == HID_KEY_KEYPAD_ENTER ||
      key == HID_KEY_APPLICATION ||
      key == HID_KEY_POWER ||
-     key >= HID_KEY_GUI_LEFT && key != HID_KEY_SHIFT_RIGHT) {
+    (key >= HID_KEY_GUI_LEFT && key != HID_KEY_SHIFT_RIGHT)) {
     kb_send(0xe0);
   }
 }
@@ -127,9 +127,9 @@ s64 repeat_callback() {
 
 void kb_send_key(u8 key, bool state, u8 modifiers) {
   if(!kb_enabled) return;
-  if(key > HID_KEY_F24 &&
-     key < HID_KEY_CONTROL_LEFT ||
-     key > HID_KEY_GUI_RIGHT) return;
+  if((key > HID_KEY_F24 &&
+      key < HID_KEY_CONTROL_LEFT) ||
+      key > HID_KEY_GUI_RIGHT) return;
   
   if(key == HID_KEY_PAUSE) {
     repeat = 0;
