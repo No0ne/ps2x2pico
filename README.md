@@ -24,7 +24,7 @@ Keyboard only (incl. PC-XT) variant: https://github.com/No0ne/ps2pico
                   |                 |
 Pico GPIO11 ______| LV1         HV1 |______ PS/2 keyboard data
 Pico GPIO12 ______| LV2         HV2 |______ PS/2 keyboard clock
-Pico GPIO13 ______| LV          HV  |______ PS/2 5V + Pico VBUS/Vin
+Pico GPIO13 ______| LV          HV  |______ PS/2 5V + Pico VBUS
 Pico    GND ______| GND         GND |______ PS/2 GND
 Pico GPIO14 ______| LV3         HV3 |______ PS/2 mouse data
 Pico GPIO15 ______| LV4         HV4 |______ PS/2 mouse clock
