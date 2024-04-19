@@ -34,6 +34,12 @@ Pico GPIO15 ______| LV4         HV4 |______ PS/2 mouse clock
 
 **Check the power consumtion of your keyboard/mouse/hub first before plugging in!**
 
+# Troubleshooting
+You can hook up a USB serial adapter to **GPIO0** for additional debugging output. The serial settings are **115200** baud, **8** data bits and **no parity**. You can also use another Pico running the [pico-uart-bridge](https://github.com/Noltari/pico-uart-bridge) for this.
+
+⚠️ If you have a **YD-RP2040** you need to bridge all three pads of the diode near the USB-C port as seen here: https://github.com/No0ne/ps2x2pico/issues/33#issuecomment-2066736110
+Otherwise no power would be sent to the devices connected to the USB-C port.
+
 # Build
 ```
 export PICO_SDK_PATH=/path/to/pico-sdk
