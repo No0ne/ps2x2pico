@@ -30,6 +30,9 @@ Pico GPIO14 ______| LV3         HV3 |______ PS/2 mouse data
 Pico GPIO15 ______| LV4         HV4 |______ PS/2 mouse clock
                   |_________________|
 ```
+⚠️ Please note that some older motherboards have non-resettable fuses rated under 300mA.
+
+**Check the power consumtion of your keyboard/mouse/hub first before plugging in!**
 
 # Build
 ```
