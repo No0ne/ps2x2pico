@@ -34,6 +34,26 @@ Pico GPIO15 ______| LV4         HV4 |______ PS/2 mouse clock
 
 **Check the power consumtion of your keyboard/mouse/hub first before plugging in!**
 
+# Pinout diagram
+```
+  Plug (device)        Socket (motherboard)
+       _ _                     _ _
+    =       =               =       =
+  =  5  #  6  =           =  6  #  5  =
+ =  3   #   4  =         =  4   #   3  =
+ =             =         =             =
+  =   1   2   =           =   2   1   =
+    =       =               =       =
+       ~ ~                     ~ ~
+```
+1. Data
+2. unsed (mouse data on dualport)
+3. GND
+4. +5V
+5. Clock
+6. unused (mouse clock on dualport)
+
+
 # Troubleshooting
 You can hook up a USB serial adapter to **GPIO0** for additional debugging output. The serial settings are **115200** baud, **8** data bits and **no parity**. You can also use another Pico running the [pico-uart-bridge](https://github.com/Noltari/pico-uart-bridge) for this.
 
