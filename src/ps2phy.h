@@ -44,3 +44,11 @@ typedef struct {
 
 void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx);
 void ps2phy_task(ps2phy* this);
+
+extern u8 const led2ps2[];
+extern u8 const mod2ps2_1[];
+extern u8 const mod2ps2_2[];
+extern u8 const mod2ps2_3[];
+extern u8 const hid2ps2_1[];
+extern u8 const hid2ps2_2[];
+extern u8 const hid2ps2_3[];

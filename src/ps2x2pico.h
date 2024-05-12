@@ -42,7 +42,7 @@ void tuh_kb_set_leds(u8 leds);
 void kb_usb_receive(u8 const* report);
 bool kb_task();
 void kb_init(u8 gpio);
-void kb_reset();
+void kb_set_defaults();
 
 void ms_usb_receive(u8 const* report);
 bool ms_task();
