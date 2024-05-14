@@ -54,6 +54,7 @@ ps2phy kb_phy;
 #define KB_MSG_ID2_83 0x83
 #define KB_MSG_ECHO_EE 0xee
 #define KB_MSG_ACK_FA 0xfa
+#define KB_MSG_RESEND_FE 0xfe
 
 typedef enum {
   KBH_STATE_IDLE,
@@ -101,11 +102,18 @@ alarm_id_t repeater;
 u8 prev_rpt[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 u8 key2repeat = 0;
 
-u8 last_byte_send = 0;
+u8 last_byte_sent = 0;
 
 void kb_send(u8 byte) {
+  if (byte != KB_MSG_RESEND_FE)
+    last_byte_sent = byte;
   printf("kb->host:(0x%x)\n", byte);
   queue_try_add(&kb_phy.qbytes, &byte);
+}
+
+void kb_resend_last() {
+  printf("resend: kb->host:(0x%x)\n", last_byte_sent);
+  queue_try_add(&kb_phy.qbytes, &last_byte_sent);
 }
 
 void kb_maybe_send_prefix(u8 key) {
@@ -428,10 +436,6 @@ void kb_usb_receive(u8 const* report) {
 const char* notinscs3_str = "WARNING: Scan code set 3 not set. Ignoring command 0x%x\n";
 
 void kb_receive(u8 byte, u8 prev_byte) {
-  if (last_byte_send != KBHOSTCMD_RESEND_FE)
-    last_byte_send = byte; // need to remember this in case the host requests it with cmd 0xfe
-  
-  last_byte_send = byte;
   printf("host->kb(0x%x)\n", byte);
   switch (kbhost_state) {
     case KBH_STATE_SET_KEY_MAKE_FD:
@@ -494,9 +498,7 @@ void kb_receive(u8 byte, u8 prev_byte) {
 
         case KBHOSTCMD_RESEND_FE:
           printf("KBHOSTCMD_RESEND_FE\n");
-          // TODO: Debug with actual keyboard
-          printf("WARNING: Host command 0xfe unclear, sending last received byte 0x%x back!\n",last_byte_send);
-          kb_send(last_byte_send);
+          kb_resend_last();
           kbhost_state = KBH_STATE_IDLE;
         return;
 
@@ -626,12 +628,13 @@ void kb_receive(u8 byte, u8 prev_byte) {
         break;
 
         default:
-          printf("WARNING: Unknown host cmd: 0x%x, ignoring it!\n",byte);
-        break;
+          printf("WARNING: Unknown host cmd: 0x%x, requesting resend from host!\n",byte);
+          kb_send(KB_MSG_RESEND_FE);
+          kbhost_state = KBH_STATE_IDLE;
+        return;
       }
     break;
   }
-
   kb_send(KB_MSG_ACK_FA);
 }
 
