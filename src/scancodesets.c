@@ -343,7 +343,7 @@ u8 const hid2ps2_2[] = {
   0x7d, // KP 9
   0x70, // KP 0
   0x71, // KP .
-  0x61, // ???EUROPE_2???
+  0x61, // EUROPE_2 -> key left of Y on German keyboard
   0x2f, // APPS
   0x37, // ----
   0x0f,

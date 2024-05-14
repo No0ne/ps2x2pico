@@ -33,13 +33,13 @@ ps2phy kb_phy;
 
 #define KBHOSTCMD_RESET_FF 0xff
 #define KBHOSTCMD_RESEND_FE 0xfe
-#define KBHOSTCMD_SSC3_SET_KEY_MAKE_FD 0xfd
-#define KBHOSTCMD_SSC3_SET_KEY_MAKE_BREAK_FC 0xfc
-#define KBHOSTCMD_SSC3_SET_KEY_MAKE_TYPEMATIC_FB 0xfb
-#define KBHOSTCMD_SSC3_SET_ALL_MAKE_BREAK_TYPEMATIC_FA 0xfa
-#define KBHOSTCMD_SSC3_SET_ALL_MAKE_F9 0xf9
-#define KBHOSTCMD_SSC3_SET_ALL_MAKE_BREAK_F8 0xf8
-#define KBHOSTCMD_SSC3_SET_ALL_MAKE_TYPEMATIC_F7 0xf7
+#define KBHOSTCMD_SCS3_SET_KEY_MAKE_FD 0xfd
+#define KBHOSTCMD_SCS3_SET_KEY_MAKE_BREAK_FC 0xfc
+#define KBHOSTCMD_SCS3_SET_KEY_MAKE_TYPEMATIC_FB 0xfb
+#define KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_TYPEMATIC_FA 0xfa
+#define KBHOSTCMD_SCS3_SET_ALL_MAKE_F9 0xf9
+#define KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_F8 0xf8
+#define KBHOSTCMD_SCS3_SET_ALL_MAKE_TYPEMATIC_F7 0xf7
 #define KBHOSTCMD_SET_DEFAULT_F6 0xf6
 #define KBHOSTCMD_DISABLE_F5 0xf5
 #define KBHOSTCMD_ENABLE_F4 0xf4
@@ -68,13 +68,13 @@ typedef enum {
 kbhost_state_enum_t kbhost_state = KBH_STATE_IDLE;
 
 typedef enum {
-  SSC3_MODE_MAKE,
-  SSC3_MODE_MAKE_BREAK,
-  SSC3_MODE_MAKE_TYPEMATIC,
-  SSC3_MODE_MAKE_BREAK_TYPEMATIC,
-} ssc3_mode_enum_t;
+  SCS3_MODE_MAKE,
+  SCS3_MODE_MAKE_BREAK,
+  SCS3_MODE_MAKE_TYPEMATIC,
+  SCS3_MODE_MAKE_BREAK_TYPEMATIC,
+} scs3_mode_enum_t;
 
-ssc3_mode_enum_t ssc3_mode = SSC3_MODE_MAKE_BREAK_TYPEMATIC;
+scs3_mode_enum_t scs3_mode = SCS3_MODE_MAKE_BREAK_TYPEMATIC;
 
 #define SCAN_CODE_SET_1 1
 #define SCAN_CODE_SET_2 2
@@ -140,15 +140,15 @@ s64 blink_callback() {
   return 0;
 }
 
-void set_scancodeset(u8 ssc) {
-  scancodeset = ssc;
+void set_scancodeset(u8 scs) {
+  scancodeset = scs;
   printf("scancodeset set to %u\n", scancodeset);
 }
 
 void kb_set_defaults() {
   printf("Setting defaults for keyboard\n");
   kbhost_state = KBH_STATE_IDLE;
-  ssc3_mode = SSC3_MODE_MAKE_BREAK_TYPEMATIC;
+  scs3_mode = SCS3_MODE_MAKE_BREAK_TYPEMATIC;
   set_scancodeset(2);
   kb_enabled = true;
   repeat_us = 91743;
@@ -202,7 +202,7 @@ s64 repeat_cb() {
   return 0;
 }
 
-void kb_send_key_ssc1(u8 key, bool is_key_pressed) {
+void kb_send_key_scs1(u8 key, bool is_key_pressed) {
 
   // PrintScreen and Pause have special sequences that must be sent.
   // Pause doesn't have a break code.
@@ -259,7 +259,7 @@ void kb_send_key_ssc1(u8 key, bool is_key_pressed) {
   }
 }
 
-void kb_send_key_ssc2(u8 key, bool is_key_pressed) {
+void kb_send_key_scs2(u8 key, bool is_key_pressed) {
 
   // PrintScreen and Pause have special sequences that must be sent.
   // Pause doesn't have a break code.
@@ -309,11 +309,11 @@ void kb_send_key_ssc2(u8 key, bool is_key_pressed) {
   }
 }
 
-void kb_send_key_ssc3(u8 key, bool is_key_pressed) {
+void kb_send_key_scs3(u8 key, bool is_key_pressed) {
 
   // Take care of typematic repeat
   if (is_key_pressed) {
-    if (ssc3_mode == SSC3_MODE_MAKE_BREAK_TYPEMATIC || ssc3_mode == SSC3_MODE_MAKE_TYPEMATIC) {
+    if (scs3_mode == SCS3_MODE_MAKE_BREAK_TYPEMATIC || scs3_mode == SCS3_MODE_MAKE_TYPEMATIC) {
       key2repeat = key;
       if (repeater)
         cancel_alarm(repeater);
@@ -351,13 +351,13 @@ void kb_send_key(u8 key, bool is_key_pressed) {
 
   switch (scancodeset) {
     case SCAN_CODE_SET_1:
-      kb_send_key_ssc1(key, is_key_pressed);
+      kb_send_key_scs1(key, is_key_pressed);
       break;
     case SCAN_CODE_SET_2:
-      kb_send_key_ssc2(key, is_key_pressed);
+      kb_send_key_scs2(key, is_key_pressed);
       break;
     case SCAN_CODE_SET_3:
-      kb_send_key_ssc3(key, is_key_pressed);
+      kb_send_key_scs3(key, is_key_pressed);
       break;
     default:
       printf("INTERNAL ERROR! SCAN CODE SET = %u\n", scancodeset);
@@ -425,7 +425,7 @@ void kb_usb_receive(u8 const* report) {
   }
 }
 
-const char* notinssc3_str = "WARNING: Scan code set 3 not set. Ignoring command 0x%x\n";
+const char* notinscs3_str = "WARNING: Scan code set 3 not set. Ignoring command 0x%x\n";
 
 void kb_receive(u8 byte, u8 prev_byte) {
   if (last_byte_send != KBHOSTCMD_RESEND_FE)
@@ -500,74 +500,74 @@ void kb_receive(u8 byte, u8 prev_byte) {
           kbhost_state = KBH_STATE_IDLE;
         return;
 
-        case KBHOSTCMD_SSC3_SET_KEY_MAKE_FD:
-          printf("KBHOSTCMD_SSC3_SET_KEY_MAKE_FD\n");
+        case KBHOSTCMD_SCS3_SET_KEY_MAKE_FD:
+          printf("KBHOSTCMD_SCS3_SET_KEY_MAKE_FD\n");
           if (scancodeset == SCAN_CODE_SET_3) {
             kbhost_state = KBH_STATE_SET_KEY_MAKE_FD;
           } else {
-            printf(notinssc3_str,byte);
+            printf(notinscs3_str,byte);
             kbhost_state = KBH_STATE_IDLE;
           }
         break;
 
-        case KBHOSTCMD_SSC3_SET_KEY_MAKE_BREAK_FC:
-          printf("KBHOSTCMD_SSC3_SET_KEY_MAKE_BREAK_FC\n");
+        case KBHOSTCMD_SCS3_SET_KEY_MAKE_BREAK_FC:
+          printf("KBHOSTCMD_SCS3_SET_KEY_MAKE_BREAK_FC\n");
           if (scancodeset == SCAN_CODE_SET_3) {
             kbhost_state = KBH_STATE_SET_KEY_MAKE_BREAK_FC;
           } else {
-            printf(notinssc3_str,byte);
+            printf(notinscs3_str,byte);
             kbhost_state = KBH_STATE_IDLE;
           }
         break;
 
-        case KBHOSTCMD_SSC3_SET_KEY_MAKE_TYPEMATIC_FB:
-          printf("KBHOSTCMD_SSC3_SET_KEY_MAKE_TYPEMATIC_FB\n");
+        case KBHOSTCMD_SCS3_SET_KEY_MAKE_TYPEMATIC_FB:
+          printf("KBHOSTCMD_SCS3_SET_KEY_MAKE_TYPEMATIC_FB\n");
           if (scancodeset == SCAN_CODE_SET_3) {
             kbhost_state = KBH_STATE_SET_KEY_MAKE_TYPEMATIC_FB;
           } else {
-            printf(notinssc3_str,byte);
+            printf(notinscs3_str,byte);
             kbhost_state = KBH_STATE_IDLE;
           }
         break;
 
 
-        case KBHOSTCMD_SSC3_SET_ALL_MAKE_BREAK_TYPEMATIC_FA: 
-          printf("KBHOSTCMD_SSC3_SET_ALL_MAKE_BREAK_TYPEMATIC_FA\n");
+        case KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_TYPEMATIC_FA: 
+          printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_TYPEMATIC_FA\n");
           if (scancodeset == SCAN_CODE_SET_3) {
-            ssc3_mode = SSC3_MODE_MAKE_BREAK_TYPEMATIC;
+            scs3_mode = SCS3_MODE_MAKE_BREAK_TYPEMATIC;
           } else {
-            printf(notinssc3_str,byte);
+            printf(notinscs3_str,byte);
           }
           kbhost_state = KBH_STATE_IDLE;
         break;
 
-        case KBHOSTCMD_SSC3_SET_ALL_MAKE_F9: 
+        case KBHOSTCMD_SCS3_SET_ALL_MAKE_F9: 
           // utilized by SGI O2
-          printf("KBHOSTCMD_SSC3_SET_ALL_MAKE_F9\n");
+          printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_F9\n");
           if (scancodeset == SCAN_CODE_SET_3) {
-            ssc3_mode = SSC3_MODE_MAKE;
+            scs3_mode = SCS3_MODE_MAKE;
           } else {
-            printf(notinssc3_str,byte);
+            printf(notinscs3_str,byte);
           }
           kbhost_state = KBH_STATE_IDLE;
         break;
 
-        case KBHOSTCMD_SSC3_SET_ALL_MAKE_BREAK_F8: 
+        case KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_F8: 
           if (scancodeset == SCAN_CODE_SET_3) {
-            printf("KBHOSTCMD_SSC3_SET_ALL_MAKE_BREAK_F8\n");
-            ssc3_mode = SSC3_MODE_MAKE_BREAK;
+            printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_F8\n");
+            scs3_mode = SCS3_MODE_MAKE_BREAK;
           } else {
-            printf(notinssc3_str,byte);
+            printf(notinscs3_str,byte);
           }
           kbhost_state = KBH_STATE_IDLE;
         break;
 
-        case KBHOSTCMD_SSC3_SET_ALL_MAKE_TYPEMATIC_F7:
+        case KBHOSTCMD_SCS3_SET_ALL_MAKE_TYPEMATIC_F7:
           if (scancodeset == SCAN_CODE_SET_3) {
-            printf("KBHOSTCMD_SSC3_SET_ALL_MAKE_TYPEMATIC_F7\n");
-            ssc3_mode = SSC3_MODE_MAKE_TYPEMATIC;
+            printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_TYPEMATIC_F7\n");
+            scs3_mode = SCS3_MODE_MAKE_TYPEMATIC;
           } else {
-            printf(notinssc3_str,byte);
+            printf(notinscs3_str,byte);
           }
           kbhost_state = KBH_STATE_IDLE;
         break;
