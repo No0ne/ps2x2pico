@@ -46,7 +46,7 @@ char manufacturer_str[50];
 void tuh_kb_set_leds(u8 leds) {
   if(kb_addr) {
     kb_leds = leds;
-    printf("HID device address = %d, instance = %d, LEDs = %d\n", kb_addr, kb_inst, kb_leds);
+    printf("HID(%d,%d): LEDs = %d\n", kb_addr, kb_inst, kb_leds);
     tuh_hid_set_report(kb_addr, kb_inst, 0, HID_REPORT_TYPE_OUTPUT, &kb_leds, sizeof(kb_leds));
   }
 }
@@ -74,7 +74,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
       break;
   };
 
-  printf("HID device address = %d, instance = %d, protocol = %s is mounted\r\n", dev_addr, instance, hidprotostr);
+  printf("HID(%d,%d,%s) mounted\r\n", dev_addr, instance, hidprotostr);
   printf(" ID: %04x:%04x\r\n", vid, pid);
  
   uint16_t temp_buf[128];
@@ -113,7 +113,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
 }
 
 void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
-  printf("HID device address = %d, instance = %d is unmounted\n", dev_addr, instance);
+  printf("HID(%d,%d) unmounted\n", dev_addr, instance);
   board_led_write(0);
   
   if(dev_addr == kb_addr && instance == kb_inst) {
@@ -126,9 +126,7 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
 
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      #ifdef TRACE
-      printf("HID input received - dev_addr = %d, instance = %d, report[0] = 0x%x, report[2] = 0x%x report_len = %d\n", dev_addr, instance, report[0], report[2], len);
-      #endif
+      printf("HID_KB(%d,%d): r[2]=0x%x,r[0]=0x%x,l=%d\n", dev_addr, instance, report[2], report[0], len);
       kb_usb_receive(report);
       tuh_hid_receive_report(dev_addr, instance);
     break;
@@ -159,6 +157,7 @@ void main() {
   }
 }
 
+// TODO: Can probably be removed.
 void reset() {
   watchdog_enable(100, false);
 }

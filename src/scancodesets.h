@@ -1,8 +1,10 @@
+
 /*
  * The MIT License (MIT)
  *
  * Copyright (c) 2022 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
+ *           (c) 2024 Bernd Strobel
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -24,23 +26,21 @@
  *
  */
 
-#include "hardware/pio.h"
-#include "pico/util/queue.h"
 #include "ps2x2pico.h"
 
-typedef void (*rx_callback)(u8 byte, u8 prev_byte);
+#define KB_EXT_PFX_E0 0xe0
+#define KB_BREAK_2_3 0xf0 // The prefix 0xf0 is send in sets 2 and 3 when key is released
 
-typedef struct {
-  PIO pio;
-  uint sm;
-  queue_t qbytes;
-  queue_t qpacks;
-  rx_callback rx;
-  u8 last_rx;
-  u8 last_tx;
-  u8 sent;
-  u8 busy;
-} ps2phy;
-
-void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx);
-void ps2phy_task(ps2phy* this);
+extern u8 const ext_code_keys_1_2[];
+extern u8 const mod2ps2_1[];
+extern u8 const mod2ps2_2[];
+extern u8 const mod2ps2_3[];
+extern u8 const hid2ps2_1[];
+extern u8 const hid2ps2_2[];
+extern u8 const hid2ps2_3[];
+extern u8 const prt_scn_make_1[];
+extern u8 const prt_scn_break_1[];
+extern u8 const pause_make_1[];
+extern u8 const prt_scn_make_2[];
+extern u8 const prt_scn_break_2[];
+extern u8 const pause_make_2[];
