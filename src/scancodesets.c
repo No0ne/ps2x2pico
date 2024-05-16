@@ -144,6 +144,7 @@ u8 const mod2ps2_3[] = {
 // break codes in set 1 are created from the make code by adding 128 (0x80) or in other words set the msb.
 // this is true even for the extended codes (but 0xe0 stays 0xe0) and the special multi byte codes for print screen and pause
 u8 const hid2ps2_1[] = {
+  // 0x00 - 0x0f
   0, 0, 0, 0, // NONE
   0x1E, // A
   0x30, // B
@@ -157,6 +158,7 @@ u8 const hid2ps2_1[] = {
   0x24, // J
   0x25, // K
   0x26, // L
+  // 0x10 - 0x1f
   0x32, // M
   0x31, // N
   0x18, // O
@@ -173,6 +175,7 @@ u8 const hid2ps2_1[] = {
   0x2C, // Z
   0x02, // 1
   0x03, // 2
+  // 0x20 - 0x2f
   0x04, // 3
   0x05, // 4
   0x06, // 5
@@ -189,6 +192,7 @@ u8 const hid2ps2_1[] = {
   0x0C, // -
   0x0D, // =
   0x1A, // [
+  // 0x30 - 0x3f
   0x1B, // ]
   0x2B, // BACKSLASH
   0x00, // ???EUROPE_1???
@@ -205,6 +209,7 @@ u8 const hid2ps2_1[] = {
   0x3E, // F4
   0x3F, // F5
   0x40, // F6
+  // 0x40 - 0x4f
   0x41, // F7
   0x42, // F8
   0x43, // F9
@@ -221,6 +226,7 @@ u8 const hid2ps2_1[] = {
   0x4F, // E0 END
   0x51, // E0 PG DN
   0x4D, // E0 R ARROW
+  // 0x50 - 0x5f
   0x4B, // E0 L ARROW
   0x50, // E0 D ARROW
   0x48, // E0 U ARROW
@@ -237,16 +243,33 @@ u8 const hid2ps2_1[] = {
   0x4C, // KP 5
   0x4D, // KP 6
   0x47, // KP 7
+  // 0x60 - 0x6f
   0x48, // KP 8
   0x49, // KP 9
   0x52, // KP 0
   0x53, // KP .
   0x00, // ???EUROPE_2???
-  0x5D  // E0 APPS
+  0x5D, // E0 APPS
+  0x00,       // POWER
+  0x00,       // KEYPAD_EQUAL
+  0x00,       // F13
+  0x00,       // F14
+  0x00,       // F15
+  0x00,       // F16
+  0x00,       // F17
+  0x00,       // F18
+  0x00,       // F19
+  0x00,       // F20
+  // 0x70 - 0x73
+  0x00,       // F21
+  0x00,       // F22
+  0x00,       // F23
+  0x00        // F24
 };
 
 u8 const hid2ps2_2[] = {
-  0x00, 0x00, 0xfc, 0x00,
+  // 0x00 - 0x0f
+  0, 0, 0, 0, // NONE
   0x1c, // A
   0x32, // B
   0x21, // C
@@ -259,6 +282,7 @@ u8 const hid2ps2_2[] = {
   0x3b, // J
   0x42, // K
   0x4b, // L
+  // 0x10 - 0x1f
   0x3a, // M
   0x31, // N
   0x44, // O
@@ -275,6 +299,7 @@ u8 const hid2ps2_2[] = {
   0x1a, // Z
   0x16, // 1
   0x1e, // 2
+  // 0x20 - 0x2f
   0x26, // 3
   0x25, // 4
   0x2e, // 5
@@ -291,6 +316,7 @@ u8 const hid2ps2_2[] = {
   0x4e, // -
   0x55, // =
   0x54, // [
+  // 0x30 - 0x3f
   0x5b, // ]
   0x5d, // BACKSLASH
   0x5d, // ???EUROPE_1???
@@ -307,6 +333,7 @@ u8 const hid2ps2_2[] = {
   0x0c, // F4
   0x03, // F5
   0x0b, // F6
+  // 0x40 - 0x4f
   0x83, // F7
   0x0a, // F8
   0x01, // F9
@@ -323,6 +350,7 @@ u8 const hid2ps2_2[] = {
   0x69, // END
   0x7a, // PD DN
   0x74, // R ARROW
+  // 0x50 - 0x5f
   0x6b, // L ARROW
   0x72, // D ARROW
   0x75, // U ARROW
@@ -339,29 +367,39 @@ u8 const hid2ps2_2[] = {
   0x73, // KP 5
   0x74, // KP 6
   0x6c, // KP 7
+  // 0x60 - 0x6f
   0x75, // KP 8
   0x7d, // KP 9
   0x70, // KP 0
   0x71, // KP .
   0x61, // EUROPE_2 -> key left of Y on German keyboard
   0x2f, // APPS
-  0x37, // ----
-  0x0f,
-  0x08,
-  0x10,
-  0x18,
-  0x20,
-  0x28,
-  0x30,
-  0x38,
-  0x40,
-  0x48,
-  0x50,
-  0x57,
-  0x5f
+  0x37, // POWER
+  0x0f, // KEYPAD_EQUAL
+  0x08, // F13
+  0x10, // F14
+  0x18, // F15
+  0x20, // F16
+  0x28, // F17
+  0x30, // F18
+  0x38, // F19
+  0x40, // F20
+  // 0x70 - 0x73
+  0x48, // F21
+  0x50, // F22
+  0x57, // F23
+  0x5f  // F24
 };
 
+
+// TODO: Complete mapping
+// Not working on German keyboard
+// key between left shift and y
+// key # (right of enter)
+// I could trace an original board or just send keys and check which key lights up
+// in the Irix Confidence Tests -> keyboard
 u8 const hid2ps2_3[] = {
+  // 0x00 - 0x0f
   0, 0, 0, 0, // NONE
   0x1C,       // A
   0x32,       // B
@@ -375,6 +413,7 @@ u8 const hid2ps2_3[] = {
   0x3B,       // J
   0x42,       // K
   0x4B,       // L
+  // 0x10 - 0x1f
   0x3A,       // M
   0x31,       // N
   0x44,       // O
@@ -391,6 +430,7 @@ u8 const hid2ps2_3[] = {
   0x1A,       // Z
   0x16,       // 1
   0x1E,       // 2
+  // 0x20 - 0x2f
   0x26,       // 3
   0x25,       // 4
   0x2E,       // 5
@@ -407,6 +447,7 @@ u8 const hid2ps2_3[] = {
   0x4E,       // -
   0x55,       // =
   0x54,       // [
+  // 0x30 - 0x3f
   0x5B,       // ]
   0x5C,       // BACKSLASH
   0x00,       // ???EUROPE_1???
@@ -423,6 +464,7 @@ u8 const hid2ps2_3[] = {
   0x1F,       // F4
   0x27,       // F5
   0x2F,       // F6
+  // 0x40 - 0x4f
   0x37,       // F7
   0x3F,       // F8
   0x47,       // F9
@@ -439,13 +481,14 @@ u8 const hid2ps2_3[] = {
   0x65,       // END
   0x6D,       // PG DN
   0x6A,       // R ARROW
+  // 0x50 - 0x5f
   0x61,       // L ARROW
   0x60,       // D ARROW
   0x63,       // U ARROW
   0x76,       // NUM
-  0x4A,       // KP /
+  0x77,       // KP /
   0x7E,       // KP *
-  0x4E,       // KP -
+  0x84,       // KP -
   0x7C,       // KP +
   0x79,       // KP EN
   0x69,       // KP 1
@@ -455,10 +498,26 @@ u8 const hid2ps2_3[] = {
   0x73,       // KP 5
   0x74,       // KP 6
   0x6C,       // KP 7
+  // 0x60 - 0x6f
   0x75,       // KP 8
   0x7D,       // KP 9
   0x70,       // KP 0
   0x71,       // KP .
-  0x00,       // ???EUROPE_2???
-  0x8D        // APPS
+  0x00,       // EUROPE_2 -> key left of Y on German keyboard
+  0x00,       // APPS
+  0x00,       // POWER
+  0x00,       // KEYPAD_EQUAL
+  0x00,       // F13
+  0x00,       // F14
+  0x00,       // F15
+  0x00,       // F16
+  0x00,       // F17
+  0x00,       // F18
+  0x00,       // F19
+  0x00,       // F20
+  // 0x70 - 0x73
+  0x00,       // F21
+  0x00,       // F22
+  0x00,       // F23
+  0x00        // F24
 };

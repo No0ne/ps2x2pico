@@ -54,6 +54,13 @@ void tuh_kb_set_leds(u8 leds) {
 #define LANGUAGE_ID 0x0409 // English
 
 void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_len) {
+  // This happens if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE.
+  // Consider increasing #define CFG_TUH_ENUMERATION_BUFSIZE 256 in tusb_config.h
+  if (desc_report == NULL && desc_len == 0) {
+    printf("WARNING: HID(%d,%d) skipped!\n",dev_addr, instance);
+    return;
+  }
+
   hid_interface_protocol_enum_t hid_if_proto = tuh_hid_interface_protocol(dev_addr, instance);
   uint16_t vid, pid;
   tuh_vid_pid_get(dev_addr, &vid, &pid);
@@ -74,8 +81,8 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
       break;
   };
 
-  printf("HID(%d,%d,%s) mounted\r\n", dev_addr, instance, hidprotostr);
-  printf(" ID: %04x:%04x\r\n", vid, pid);
+  printf("HID(%d,%d,%s) mounted\n", dev_addr, instance, hidprotostr);
+  printf(" ID: %04x:%04x\n", vid, pid);
  
   uint16_t temp_buf[128];
 
@@ -84,31 +91,29 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
   {
     print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
   }
-  printf("\r\n");
+  printf("\n");
 
   printf(" Product:      ");
   if (XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(dev_addr, LANGUAGE_ID, temp_buf, sizeof(temp_buf)))
   {
     print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
   }
-  printf("\r\n\r\n");
+  printf("\n\n");
 
-  switch(hid_if_proto) {
-    case HID_ITF_PROTOCOL_KEYBOARD:
-      
-      kb_addr = dev_addr;
-      kb_inst = instance;
-      //kb_reset();
-      
-      tuh_hid_receive_report(dev_addr, instance);
+  if (hid_if_proto == HID_ITF_PROTOCOL_KEYBOARD || hid_if_proto == HID_ITF_PROTOCOL_MOUSE) {
+    if (!tuh_hid_receive_report(dev_addr, instance)) {
+      printf("ERROR: Could not register for HID(%d,%d,%s)!\n", dev_addr, instance, hidprotostr);
+    } else {
+      printf("HID(%d,%d,%s) registered for reports\n", dev_addr, instance, hidprotostr);
+      if (hid_if_proto == HID_ITF_PROTOCOL_KEYBOARD) {
+          // TODO: This needs to be addressed if we want to have multiple connected kbds working correctly! 
+          // Only relevant for KB LEDS though.
+          // Could be a list of all connected kbds, so we could set the LEDs on each.
+          kb_addr = dev_addr;
+          kb_inst = instance;
+      }
       board_led_write(1);
-    break;
-    
-    case HID_ITF_PROTOCOL_MOUSE:
-      //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
-      tuh_hid_receive_report(dev_addr, instance);
-      board_led_write(1);
-    break;
+    }
   }
 }
 
@@ -126,12 +131,27 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
 
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
+      #ifdef TRACE
+      printf("HID_KB(%d,%d): r[2..7]={0x%x,0x%x,0x%x,0x%x,0x%x,0x%x},r[0]=0x%x,l=%d\n",
+       dev_addr, instance, 
+       report[2], report[3], report[4], report[5], report[6], report[7], 
+       report[0], len);
+      #else
       printf("HID_KB(%d,%d): r[2]=0x%x,r[0]=0x%x,l=%d\n", dev_addr, instance, report[2], report[0], len);
-      kb_usb_receive(report);
+      #endif
+      kb_usb_receive(report, len);
       tuh_hid_receive_report(dev_addr, instance);
     break;
     
     case HID_ITF_PROTOCOL_MOUSE:
+      #ifdef TRACE
+      printf("HID_MS(%d,%d): r[2..7]={0x%x,0x%x,0x%x,0x%x,0x%x,0x%x},r[0]=0x%x,l=%d\n",
+       dev_addr, instance, 
+       report[2], report[3], report[4], report[5], report[6], report[7], 
+       report[0], len);
+      #else
+      printf("HID_MS(%d,%d)\n", dev_addr, instance);
+      #endif
       ms_usb_receive(report);
       tuh_hid_receive_report(dev_addr, instance);
     break;

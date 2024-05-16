@@ -39,7 +39,7 @@ typedef uint32_t u32;
 typedef uint64_t u64;
 
 void tuh_kb_set_leds(u8 leds);
-void kb_usb_receive(u8 const* report);
+void kb_usb_receive(u8 const* report, u16 len);
 bool kb_task();
 void kb_init(u8 gpio);
 void kb_set_defaults();

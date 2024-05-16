@@ -55,12 +55,12 @@
 
 #define CFG_TUH_ENUMERATION_BUFSIZE 256
 
-#define CFG_TUH_HUB                 1
-#define CFG_TUH_DEVICE_MAX          4
+#define CFG_TUH_HUB                 2
+#define CFG_TUH_DEVICE_MAX          6
 
-#define CFG_TUH_HID                 4
-#define CFG_TUH_HID_EPIN_BUFSIZE    64
-#define CFG_TUH_HID_EPOUT_BUFSIZE   64
+#define CFG_TUH_HID                 16
+#define CFG_TUH_HID_EPIN_BUFSIZE    128 // default 64
+#define CFG_TUH_HID_EPOUT_BUFSIZE   128 // default 64
 
 #ifdef __cplusplus
  }

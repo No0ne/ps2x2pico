@@ -28,10 +28,13 @@
 
 #include "ps2x2pico.h"
 
-#define KB_EXT_PFX_E0 0xe0
-#define KB_BREAK_2_3 0xf0 // The prefix 0xf0 is send in sets 2 and 3 when key is released
+#define KB_EXT_PFX_E0 0xe0 // This is the extended code prefix used in sets 1 and 2
+#define KB_BREAK_2_3 0xf0 // The prefix 0xf0 is the break code prefex in sets 2 and 3 (is send when key is released)
+#define HID2PS2_IDX_MAX 0x73
+#define MOD2PS2_IDX_MAX 7
+#define IS_VALID_KEY(key) (key <= HID2PS2_IDX_MAX)
 
-extern u8 const ext_code_keys_1_2[];
+extern u8 const ext_code_keys_1_2[]; // keys in this list need to have KB_EXT_PFX_E0 sent before their actual code
 extern u8 const mod2ps2_1[];
 extern u8 const mod2ps2_2[];
 extern u8 const mod2ps2_3[];
