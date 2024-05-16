@@ -137,7 +137,9 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
        report[2], report[3], report[4], report[5], report[6], report[7], 
        report[0], len);
       #else
+      #ifdef KB_DEBUG
       printf("HID_KB(%d,%d): r[2]=0x%x,r[0]=0x%x,l=%d\n", dev_addr, instance, report[2], report[0], len);
+      #endif
       #endif
       kb_usb_receive(report, len);
       tuh_hid_receive_report(dev_addr, instance);
@@ -150,7 +152,9 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
        report[2], report[3], report[4], report[5], report[6], report[7], 
        report[0], len);
       #else
+      #ifdef MS_DEBUG
       printf("HID_MS(%d,%d)\n", dev_addr, instance);
+      #endif
       #endif
       ms_usb_receive(report);
       tuh_hid_receive_report(dev_addr, instance);

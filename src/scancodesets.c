@@ -195,7 +195,7 @@ u8 const hid2ps2_1[] = {
   // 0x30 - 0x3f
   0x1B, // ]
   0x2B, // BACKSLASH
-  0x00, // ???EUROPE_1???
+  0x2B, // EUROPE_1 TODO: Verify!
   0x27, // ;
   0x28, // ' APOSTROPHE
   0x29, // ` GRAVE
@@ -248,7 +248,7 @@ u8 const hid2ps2_1[] = {
   0x49, // KP 9
   0x52, // KP 0
   0x53, // KP .
-  0x00, // ???EUROPE_2???
+  0x56, // EUROPE_2 TODO: Verify!
   0x5D, // E0 APPS
   0x00,       // POWER
   0x00,       // KEYPAD_EQUAL
@@ -319,7 +319,7 @@ u8 const hid2ps2_2[] = {
   // 0x30 - 0x3f
   0x5b, // ]
   0x5d, // BACKSLASH
-  0x5d, // ???EUROPE_1???
+  0x5d, // EUROPE_1 TODO: Verify!
   0x4c, // ;
   0x52, // ' APOSTROPHE
   0x0e, // ` GRAVE
@@ -372,7 +372,7 @@ u8 const hid2ps2_2[] = {
   0x7d, // KP 9
   0x70, // KP 0
   0x71, // KP .
-  0x61, // EUROPE_2 -> key left of Y on German keyboard
+  0x61, // EUROPE_2 TODO: Verify!
   0x2f, // APPS
   0x37, // POWER
   0x0f, // KEYPAD_EQUAL
@@ -450,7 +450,7 @@ u8 const hid2ps2_3[] = {
   // 0x30 - 0x3f
   0x5B,       // ]
   0x5C,       // BACKSLASH
-  0x00,       // ???EUROPE_1???
+  0x13,       // EUROPE_1
   0x4C,       // ;
   0x52,       // ' APOSTROPHE
   0x0E,       // ` GRAVE
@@ -503,7 +503,7 @@ u8 const hid2ps2_3[] = {
   0x7D,       // KP 9
   0x70,       // KP 0
   0x71,       // KP .
-  0x00,       // EUROPE_2 -> key left of Y on German keyboard
+  0x53,       // EUROPE_2
   0x00,       // APPS
   0x00,       // POWER
   0x00,       // KEYPAD_EQUAL
