@@ -123,9 +123,10 @@ void kb_resend_last() {
   queue_try_add(&kb_phy.qbytes, &last_byte_sent);
 }
 
-void kb_maybe_send_prefix(u8 key) {
-  for (int i = 0; ext_code_keys_1_2[i]; i++) {
-    if (key == ext_code_keys_1_2[i]) {
+void kb_maybe_send_prefix(u8 key, bool is_modifier_key) {
+  u8 const *l = is_modifier_key?ext_code_modifier_keys_1_2:ext_code_keys_1_2;
+  for (int i = 0; l[i]; i++) {
+    if (key == l[i]) {
       kb_send(KB_EXT_PFX_E0);
       break;
     }
@@ -178,11 +179,11 @@ s64 repeat_cb() {
   if(key2repeat) {
     switch (scancodeset) {
       case SCAN_CODE_SET_1:
-        kb_maybe_send_prefix(key2repeat);
+        kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
         is_key2repeat_modifier?kb_send(mod2ps2_1[key2repeat]):kb_send(hid2ps2_1[key2repeat]);
       break;
       case SCAN_CODE_SET_2:
-        kb_maybe_send_prefix(key2repeat);
+        kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
         is_key2repeat_modifier?kb_send(mod2ps2_2[key2repeat]):kb_send(hid2ps2_2[key2repeat]);
       break;
       case SCAN_CODE_SET_3:
@@ -230,7 +231,7 @@ void kb_send_key_scs1(u8 key, bool is_modifier_key, bool is_key_pressed) {
   }
 
   // Some keys require a prefix before the actual code
-  kb_maybe_send_prefix(key);
+  kb_maybe_send_prefix(key, is_modifier_key);
 
   if (is_key_pressed) {
     // Take care of typematic repeat
@@ -280,7 +281,7 @@ void kb_send_key_scs2(u8 key, bool is_modifier_key, bool is_key_pressed) {
   }
 
   // Some keys require a prefix before the actual code
-  kb_maybe_send_prefix(key);
+  kb_maybe_send_prefix(key, is_modifier_key);
 
   if (is_key_pressed) {
   // Take care of typematic repeat

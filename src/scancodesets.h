@@ -35,6 +35,7 @@
 #define IS_VALID_KEY(key) (key <= HID2PS2_IDX_MAX)
 
 extern u8 const ext_code_keys_1_2[]; // keys in this list need to have KB_EXT_PFX_E0 sent before their actual code
+extern u8 const ext_code_modifier_keys_1_2[]; // keys in this list need to have KB_EXT_PFX_E0 sent before their actual code
 extern u8 const mod2ps2_1[];
 extern u8 const mod2ps2_2[];
 extern u8 const mod2ps2_3[];

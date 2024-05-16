@@ -30,10 +30,6 @@
 #include "class/hid/hid.h"
 
 u8 const ext_code_keys_1_2[] = {
-  HID_KEY_GUI_LEFT,
-  HID_KEY_CONTROL_RIGHT,
-  HID_KEY_GUI_RIGHT,
-  HID_KEY_ALT_RIGHT,
   HID_KEY_APPLICATION,
   HID_KEY_INSERT,
   HID_KEY_HOME,
@@ -48,6 +44,14 @@ u8 const ext_code_keys_1_2[] = {
   HID_KEY_KEYPAD_DIVIDE,
   HID_KEY_KEYPAD_ENTER,
   0 // End marker
+};
+
+u8 const ext_code_modifier_keys_1_2[] = {
+  3, // KEY_GUI_LEFT
+  4, // KEY_CONTROL_RIGHT
+  7, // KEY_GUI_RIGHT
+  6, // KEY_ALT_RIGHT
+  0
 };
 
 u8 const prt_scn_make_1[] = {
@@ -195,7 +199,7 @@ u8 const hid2ps2_1[] = {
   // 0x30 - 0x3f
   0x1B, // ]
   0x2B, // BACKSLASH
-  0x2B, // EUROPE_1 TODO: Verify!
+  0x2B, // EUROPE_1
   0x27, // ;
   0x28, // ' APOSTROPHE
   0x29, // ` GRAVE
@@ -248,7 +252,7 @@ u8 const hid2ps2_1[] = {
   0x49, // KP 9
   0x52, // KP 0
   0x53, // KP .
-  0x56, // EUROPE_2 TODO: Verify!
+  0x56, // EUROPE_2
   0x5D, // E0 APPS
   0x00,       // POWER
   0x00,       // KEYPAD_EQUAL
@@ -319,7 +323,7 @@ u8 const hid2ps2_2[] = {
   // 0x30 - 0x3f
   0x5b, // ]
   0x5d, // BACKSLASH
-  0x5d, // EUROPE_1 TODO: Verify!
+  0x5d, // EUROPE_1
   0x4c, // ;
   0x52, // ' APOSTROPHE
   0x0e, // ` GRAVE
@@ -372,7 +376,7 @@ u8 const hid2ps2_2[] = {
   0x7d, // KP 9
   0x70, // KP 0
   0x71, // KP .
-  0x61, // EUROPE_2 TODO: Verify!
+  0x61, // EUROPE_2
   0x2f, // APPS
   0x37, // POWER
   0x0f, // KEYPAD_EQUAL
@@ -392,12 +396,6 @@ u8 const hid2ps2_2[] = {
 };
 
 
-// TODO: Complete mapping
-// Not working on German keyboard
-// key between left shift and y
-// key # (right of enter)
-// I could trace an original board or just send keys and check which key lights up
-// in the Irix Confidence Tests -> keyboard
 u8 const hid2ps2_3[] = {
   // 0x00 - 0x0f
   0, 0, 0, 0, // NONE
@@ -450,7 +448,7 @@ u8 const hid2ps2_3[] = {
   // 0x30 - 0x3f
   0x5B,       // ]
   0x5C,       // BACKSLASH
-  0x13,       // EUROPE_1
+  0x53,       // EUROPE_1
   0x4C,       // ;
   0x52,       // ' APOSTROPHE
   0x0E,       // ` GRAVE
@@ -503,7 +501,7 @@ u8 const hid2ps2_3[] = {
   0x7D,       // KP 9
   0x70,       // KP 0
   0x71,       // KP .
-  0x53,       // EUROPE_2
+  0x13,       // EUROPE_2
   0x00,       // APPS
   0x00,       // POWER
   0x00,       // KEYPAD_EQUAL
