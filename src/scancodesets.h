@@ -1,7 +1,10 @@
+
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2019 Ha Thach (tinyusb.org)
+ * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ *           (c) 2023 Dustin Hoffman
+ *           (c) 2024 Bernd Strobel
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -23,47 +26,25 @@
  *
  */
 
-#ifndef _TUSB_CONFIG_H_
-#define _TUSB_CONFIG_H_
+#include "ps2x2pico.h"
 
-#ifdef __cplusplus
- extern "C" {
-#endif
+#define KB_EXT_PFX_E0 0xe0 // This is the extended code prefix used in sets 1 and 2
+#define KB_BREAK_2_3 0xf0 // The prefix 0xf0 is the break code prefex in sets 2 and 3 (is send when key is released)
+#define HID2PS2_IDX_MAX 0x73
+#define MOD2PS2_IDX_MAX 7
+#define IS_VALID_KEY(key) (key <= HID2PS2_IDX_MAX)
 
-//--------------------------------------------------------------------
-// COMMON CONFIGURATION
-//--------------------------------------------------------------------
-
-#define CFG_TUSB_MCU          OPT_MCU_RP2040
-#define CFG_TUSB_RHPORT0_MODE OPT_MODE_HOST
-
-#ifndef CFG_TUSB_OS
-#define CFG_TUSB_OS           OPT_OS_NONE
-#endif
-
-#ifndef CFG_TUSB_MEM_SECTION
-#define CFG_TUSB_MEM_SECTION
-#endif
-
-#ifndef CFG_TUSB_MEM_ALIGN
-#define CFG_TUSB_MEM_ALIGN        __attribute__ ((aligned(4)))
-#endif
-
-//--------------------------------------------------------------------
-// CONFIGURATION
-//--------------------------------------------------------------------
-
-#define CFG_TUH_ENUMERATION_BUFSIZE 256
-
-#define CFG_TUH_HUB                 2
-#define CFG_TUH_DEVICE_MAX          6
-
-#define CFG_TUH_HID                 16
-#define CFG_TUH_HID_EPIN_BUFSIZE    128 // default 64
-#define CFG_TUH_HID_EPOUT_BUFSIZE   128 // default 64
-
-#ifdef __cplusplus
- }
-#endif
-
-#endif /* _TUSB_CONFIG_H_ */
+extern u8 const ext_code_keys_1_2[]; // keys in this list need to have KB_EXT_PFX_E0 sent before their actual code
+extern u8 const ext_code_modifier_keys_1_2[]; // keys in this list need to have KB_EXT_PFX_E0 sent before their actual code
+extern u8 const mod2ps2_1[];
+extern u8 const mod2ps2_2[];
+extern u8 const mod2ps2_3[];
+extern u8 const hid2ps2_1[];
+extern u8 const hid2ps2_2[];
+extern u8 const hid2ps2_3[];
+extern u8 const prt_scn_make_1[];
+extern u8 const prt_scn_break_1[];
+extern u8 const pause_make_1[];
+extern u8 const prt_scn_make_2[];
+extern u8 const prt_scn_break_2[];
+extern u8 const pause_make_2[];

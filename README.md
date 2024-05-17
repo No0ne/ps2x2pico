@@ -77,3 +77,9 @@ make
 * https://wiki.osdev.org/%228042%22_PS/2_Controller
 * http://www-ug.eecg.toronto.edu/msl/nios_devices/datasheets/PS2%20Keyboard%20Protocol.htm
 * http://www-ug.eecg.utoronto.ca/desl/nios_devices_SoC/datasheets/PS2%20Mouse%20Protocol.htm
+* Archive.org links for the dead links in the pages above
+  * [Main page PS/2 Keyboard Protocol](https://web.archive.org/web/20160414014033if_/http://www.computer-engineering.org/ps2keyboard/)
+    * [Scan code set 1](https://web.archive.org/web/20160410193756if_/http://www.computer-engineering.org/ps2keyboard/scancodes1.html)
+    * [Scan code set 2](https://web.archive.org/web/20160414030011if_/http://www.computer-engineering.org/ps2keyboard/scancodes2.html)
+    * [Scan code set 3](https://web.archive.org/web/20160410184920if_/http://www.computer-engineering.org/ps2keyboard/scancodes3.html)
+  * [Main page PS/2 Mouse Protocol](https://web.archive.org/web/20160414013310if_/http://www.computer-engineering.org/ps2mouse/)
