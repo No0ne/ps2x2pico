@@ -75,6 +75,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
       break;
     case HID_ITF_PROTOCOL_MOUSE:
       hidprotostr = "MOUSE";
+      //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
       break;
     default:
       hidprotostr = "UNKNOWN";
@@ -181,8 +182,8 @@ void main() {
   }
 }
 
-// TODO: Can probably be removed.
 void reset() {
+  printf("\n\n *** PANIC via tinyusb: watchdog reset!\n\n");
   watchdog_enable(100, false);
 }
 

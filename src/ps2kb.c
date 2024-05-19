@@ -114,7 +114,7 @@ u8 last_byte_sent = 0;
 void kb_send(u8 byte) {
   if (byte != KB_MSG_RESEND_FE)
     last_byte_sent = byte;
-  printf("k>h %x\n", byte);
+  printf("kb > host %02x\n", byte);
   queue_try_add(&kb_phy.qbytes, &byte);
 }
 
@@ -149,6 +149,7 @@ s64 blink_callback() {
   if(blinking) {
     printf("Blinking keyboard LEDs\n");
     kb_set_leds(KEYBOARD_LED_NUMLOCK | KEYBOARD_LED_CAPSLOCK | KEYBOARD_LED_SCROLLLOCK);
+    kb_send(KB_MSG_SELFTEST_PASSED_AA);
     blinking = false;
     return 500000;
   }
@@ -169,7 +170,6 @@ void kb_set_defaults() {
   kb_enabled = true;
   repeat_us = 91743;
   delay_ms = 500;
-  key2repeat = 0;
   blinking = true;
   memchr(prev_rpt, sizeof(prev_rpt), 0);
   add_alarm_in_ms(100, blink_callback, NULL, false);
@@ -177,6 +177,8 @@ void kb_set_defaults() {
 
 s64 repeat_cb() {
   if(key2repeat) {
+    if(blinking) return repeat_us;
+    
     switch (scancodeset) {
       case SCAN_CODE_SET_1:
         kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
@@ -441,7 +443,7 @@ void kb_usb_receive(u8 const* report, u16 len) {
 const char* notinscs3_str = "WARNING: Scan code set 3 not set. Ignoring command 0x%x\n";
 
 void kb_receive(u8 byte, u8 prev_byte) {
-  printf("h>k %x\n", byte);
+  printf("host > kb %02x\n", byte);
   switch (kbhost_state) {
     case KBH_STATE_SET_KEY_MAKE_FD:
     case KBH_STATE_SET_KEY_MAKE_BREAK_FC:
@@ -501,7 +503,6 @@ void kb_receive(u8 byte, u8 prev_byte) {
           // We only set defaults, we do not actually reset ourselves.
           kb_set_defaults();
           kb_send(KB_MSG_ACK_FA);
-          kb_send(KB_MSG_SELFTEST_PASSED_AA);
         return;
 
         case KBHOSTCMD_RESEND_FE:

@@ -26,6 +26,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
 typedef int8_t s8;
