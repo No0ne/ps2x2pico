@@ -61,8 +61,13 @@ You can hook up a USB serial adapter to **GPIO0** for additional debugging outpu
 Otherwise no power would be sent to the devices connected to the USB-C port.
 
 # Build
+(update to the latest TinyUSB release first)
 ```
 export PICO_SDK_PATH=/path/to/pico-sdk
+cd $PICO_SDK_PATH/lib/tinyusb
+git checkout 0.16.0
+
+cd /path/to/ps2x2pico
 mkdir build
 cd build
 cmake ..
