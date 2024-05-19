@@ -32,7 +32,8 @@
 #define KB_BREAK_2_3 0xf0 // The prefix 0xf0 is the break code prefex in sets 2 and 3 (is send when key is released)
 #define HID2PS2_IDX_MAX 0x73
 #define MOD2PS2_IDX_MAX 7
-#define IS_VALID_KEY(key) (key <= HID2PS2_IDX_MAX)
+#define IS_VALID_KEY(key) (key <= HID2PS2_IDX_MAX || (key >= HID_KEY_CONTROL_LEFT && key <= HID_KEY_GUI_RIGHT))
+#define IS_MOD_KEY(key) (key >= HID_KEY_CONTROL_LEFT && key <= HID_KEY_GUI_RIGHT)
 
 extern u8 const ext_code_keys_1_2[]; // keys in this list need to have KB_EXT_PFX_E0 sent before their actual code
 extern u8 const ext_code_modifier_keys_1_2[]; // keys in this list need to have KB_EXT_PFX_E0 sent before their actual code
@@ -44,7 +45,9 @@ extern u8 const hid2ps2_2[];
 extern u8 const hid2ps2_3[];
 extern u8 const prt_scn_make_1[];
 extern u8 const prt_scn_break_1[];
+extern u8 const break_make_1[];
 extern u8 const pause_make_1[];
 extern u8 const prt_scn_make_2[];
 extern u8 const prt_scn_break_2[];
+extern u8 const break_make_2[];
 extern u8 const pause_make_2[];

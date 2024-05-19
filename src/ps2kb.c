@@ -107,7 +107,6 @@ alarm_id_t repeater;
 
 u8 prev_rpt[] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 u8 key2repeat = 0;
-bool is_key2repeat_modifier = false;
 
 u8 last_byte_sent = 0;
 
@@ -123,8 +122,8 @@ void kb_resend_last() {
   queue_try_add(&kb_phy.qbytes, &last_byte_sent);
 }
 
-void kb_maybe_send_prefix(u8 key, bool is_modifier_key) {
-  u8 const *l = is_modifier_key ? ext_code_modifier_keys_1_2 : ext_code_keys_1_2;
+void kb_maybe_send_prefix(u8 key) {
+  u8 const *l = IS_MOD_KEY(key) ? ext_code_modifier_keys_1_2 : ext_code_keys_1_2;
   for (int i = 0; l[i]; i++) {
     if (key == l[i]) {
       kb_send(KB_EXT_PFX_E0);
@@ -135,6 +134,7 @@ void kb_maybe_send_prefix(u8 key, bool is_modifier_key) {
 
 // sends out scan codes from a null byte terminated list
 void kb_send_sc_list(const u8 *list) {
+  key2repeat = 0;
   for (int i = 0; list[i]; i++) {
     kb_send(list[i]);
   }
@@ -175,54 +175,44 @@ void kb_set_defaults() {
 }
 
 s64 repeat_cb() {
-  if(key2repeat || is_key2repeat_modifier) {
+  if(key2repeat) {
     switch (scancodeset) {
       case SCAN_CODE_SET_1:
-        kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
-        is_key2repeat_modifier ? kb_send(mod2ps2_1[key2repeat]) : kb_send(hid2ps2_1[key2repeat]);
+        kb_maybe_send_prefix(key2repeat);
+        IS_MOD_KEY(key2repeat) ? kb_send(mod2ps2_1[key2repeat - HID_KEY_CONTROL_LEFT]) : kb_send(hid2ps2_1[key2repeat]);
       break;
       case SCAN_CODE_SET_2:
-        kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
-        is_key2repeat_modifier ? kb_send(mod2ps2_2[key2repeat]) : kb_send(hid2ps2_2[key2repeat]);
+        kb_maybe_send_prefix(key2repeat);
+        IS_MOD_KEY(key2repeat) ? kb_send(mod2ps2_2[key2repeat - HID_KEY_CONTROL_LEFT]) : kb_send(hid2ps2_2[key2repeat]);
       break;
       case SCAN_CODE_SET_3:
-        is_key2repeat_modifier ? kb_send(mod2ps2_3[key2repeat]) : kb_send(hid2ps2_3[key2repeat]);
+        IS_MOD_KEY(key2repeat) ? kb_send(mod2ps2_3[key2repeat - HID_KEY_CONTROL_LEFT]) : kb_send(hid2ps2_3[key2repeat]);
       break;
       default:
         repeater = 0;
-        is_key2repeat_modifier = false;
       return 0;
     }
     return repeat_us;
   }
   repeater = 0;
-  is_key2repeat_modifier = false;
   return 0;
 }
 
 #define LOG_UNMAPPED_KEY printf("WARNING: Unmapped HID key 0x%x in set %d, ignoring it!\n",key,scancodeset);
 
-void kb_send_key_scs1(u8 key, bool is_modifier_key, bool is_key_pressed) {
+void kb_send_key_scs1(u8 key, bool is_key_pressed, bool is_ctrl) {
 
   // PrintScreen and Pause have special sequences that must be sent.
   // Pause doesn't have a break code.
-  if (is_key_pressed) {
-    if (key == HID_KEY_PAUSE) {
-      kb_send_sc_list(pause_make_1);
-      return;
-    }
-    if (key == HID_KEY_PRINT_SCREEN) {
-      kb_send_sc_list(prt_scn_make_1);
-      return;
-    }
-  } else {
-    if (key == HID_KEY_PRINT_SCREEN) {
-      kb_send_sc_list(prt_scn_break_1);
-      return;
-    }
+  if(key == HID_KEY_PAUSE || key == HID_KEY_PRINT_SCREEN) {
+    if(is_key_pressed  && key == HID_KEY_PRINT_SCREEN)      kb_send_sc_list(prt_scn_make_1);
+    if(!is_key_pressed && key == HID_KEY_PRINT_SCREEN)      kb_send_sc_list(prt_scn_break_1);
+    if(is_key_pressed  && key == HID_KEY_PAUSE && is_ctrl)  kb_send_sc_list(break_make_1);
+    if(is_key_pressed  && key == HID_KEY_PAUSE && !is_ctrl) kb_send_sc_list(pause_make_1);
+    return;
   }
 
-  u8 scan_code = is_modifier_key ? mod2ps2_1[key] : hid2ps2_1[key];
+  u8 scan_code = IS_MOD_KEY(key) ? mod2ps2_1[key - HID_KEY_CONTROL_LEFT] : hid2ps2_1[key];
 
   if (!scan_code) {
     LOG_UNMAPPED_KEY
@@ -230,49 +220,36 @@ void kb_send_key_scs1(u8 key, bool is_modifier_key, bool is_key_pressed) {
   }
 
   // Some keys require a prefix before the actual code
-  kb_maybe_send_prefix(key, is_modifier_key);
+  kb_maybe_send_prefix(key);
 
   if (is_key_pressed) {
     // Take care of typematic repeat
     key2repeat = key;
-    is_key2repeat_modifier = is_modifier_key;
-    if (repeater)
-      cancel_alarm(repeater);
+    if(repeater) cancel_alarm(repeater);
     repeater = add_alarm_in_ms(delay_ms, repeat_cb, NULL, false);
 
     kb_send(scan_code);
   } else {
     // Cancel repeat
-    if (key == key2repeat) {
-      key2repeat = 0;
-      is_key2repeat_modifier = false;
-    }
+    if(key == key2repeat) key2repeat = 0;
 
     kb_send(scan_code | 0x80);
   }
 }
 
-void kb_send_key_scs2(u8 key, bool is_modifier_key, bool is_key_pressed) {
+void kb_send_key_scs2(u8 key, bool is_key_pressed, bool is_ctrl) {
 
   // PrintScreen and Pause have special sequences that must be sent.
   // Pause doesn't have a break code.
-  if (is_key_pressed) {
-    if (key == HID_KEY_PAUSE) {
-      kb_send_sc_list(pause_make_2);
-      return;
-    }
-    if (key == HID_KEY_PRINT_SCREEN) {
-      kb_send_sc_list(prt_scn_make_2);
-      return;
-    }
-  } else {
-    if (key == HID_KEY_PRINT_SCREEN) {
-      kb_send_sc_list(prt_scn_break_2);
-      return;
-    }
+  if(key == HID_KEY_PAUSE || key == HID_KEY_PRINT_SCREEN) {
+    if(is_key_pressed  && key == HID_KEY_PRINT_SCREEN)      kb_send_sc_list(prt_scn_make_2);
+    if(!is_key_pressed && key == HID_KEY_PRINT_SCREEN)      kb_send_sc_list(prt_scn_break_2);
+    if(is_key_pressed  && key == HID_KEY_PAUSE && is_ctrl)  kb_send_sc_list(break_make_2);
+    if(is_key_pressed  && key == HID_KEY_PAUSE && !is_ctrl) kb_send_sc_list(pause_make_2);
+    return;
   }
 
-  u8 scan_code = is_modifier_key ? mod2ps2_2[key] : hid2ps2_2[key];
+  u8 scan_code = IS_MOD_KEY(key) ? mod2ps2_2[key - HID_KEY_CONTROL_LEFT] : hid2ps2_2[key];
 
   if (!scan_code) {
     LOG_UNMAPPED_KEY
@@ -280,28 +257,23 @@ void kb_send_key_scs2(u8 key, bool is_modifier_key, bool is_key_pressed) {
   }
 
   // Some keys require a prefix before the actual code
-  kb_maybe_send_prefix(key, is_modifier_key);
+  kb_maybe_send_prefix(key);
 
   if (is_key_pressed) {
   // Take care of typematic repeat
     key2repeat = key;
-    is_key2repeat_modifier = is_modifier_key;
-    if (repeater)
-      cancel_alarm(repeater);
+    if(repeater) cancel_alarm(repeater);
     repeater = add_alarm_in_ms(delay_ms, repeat_cb, NULL, false);
   } else {
-    if (key == key2repeat) {
-      key2repeat = 0;
-      is_key2repeat_modifier = false;
-    }
+    if(key == key2repeat) key2repeat = 0;
     kb_send(KB_BREAK_2_3);
   }
   kb_send(scan_code);
 }
 
-void kb_send_key_scs3(u8 key, bool is_modifier_key, bool is_key_pressed) {
+void kb_send_key_scs3(u8 key, bool is_key_pressed) {
 
-  u8 scan_code = is_modifier_key ? mod2ps2_3[key] : hid2ps2_3[key];
+  u8 scan_code = IS_MOD_KEY(key) ? mod2ps2_3[key - HID_KEY_CONTROL_LEFT] : hid2ps2_3[key];
 
   if (!scan_code) {
     LOG_UNMAPPED_KEY
@@ -315,18 +287,13 @@ void kb_send_key_scs3(u8 key, bool is_modifier_key, bool is_key_pressed) {
       && !(scs3keymodemap[scan_code] & KEYMODEMASK_TYPEMATIC)
     ) {
       key2repeat = key;
-      is_key2repeat_modifier = is_modifier_key;
-      if (repeater)
-        cancel_alarm(repeater);
+      if(repeater) cancel_alarm(repeater);
       repeater = add_alarm_in_ms(delay_ms, repeat_cb, NULL, false);
     }
 
     kb_send(scan_code);
   } else {
-    if (key == key2repeat) {
-      key2repeat = 0;
-      is_key2repeat_modifier = false;
-    }
+    if(key == key2repeat) key2repeat = 0;
 
     if (
       (scs3_mode == SCS3_MODE_MAKE_BREAK || scs3_mode == SCS3_MODE_MAKE_BREAK_TYPEMATIC)
@@ -341,28 +308,28 @@ void kb_send_key_scs3(u8 key, bool is_modifier_key, bool is_key_pressed) {
 // Sends a key state change to the host
 // u8 keycode          - from hid.h HID_KEY_ definition
 // bool is_key_pressed - state of key: true=pressed, false=released
-void kb_send_key(u8 key, bool is_modifier_key, bool is_key_pressed) {
+void kb_send_key(u8 key, bool is_key_pressed, u8 modifiers) {
   if (!kb_enabled) {
     printf("WARNING: Keyboard disabled, ignoring key press %u\n", key);
     return;
   }
 
-  bool is_valid_normal_key = IS_VALID_KEY(key);
-
-  if (!is_valid_normal_key && !is_modifier_key) {
+  if(!IS_VALID_KEY(key)) {
     printf("INFO: Ignoring hid key 0x%x by design.\n", key);
     return;
   }
+  
+  bool is_ctrl = modifiers & KEYBOARD_MODIFIER_LEFTCTRL || modifiers & KEYBOARD_MODIFIER_RIGHTCTRL;
 
   switch (scancodeset) {
     case SCAN_CODE_SET_1:
-      kb_send_key_scs1(key, is_modifier_key, is_key_pressed);
+      kb_send_key_scs1(key, is_key_pressed, is_ctrl);
       break;
     case SCAN_CODE_SET_2:
-      kb_send_key_scs2(key, is_modifier_key, is_key_pressed);
+      kb_send_key_scs2(key, is_key_pressed, is_ctrl);
       break;
     case SCAN_CODE_SET_3:
-      kb_send_key_scs3(key, is_modifier_key, is_key_pressed);
+      kb_send_key_scs3(key, is_key_pressed);
       break;
     default:
       printf("INTERNAL ERROR! SCAN CODE SET = %u\n", scancodeset);
@@ -380,7 +347,7 @@ void kb_usb_receive(u8 const* report, u16 len) {
     
     for(u8 j = 0; j <= MOD2PS2_IDX_MAX; j++) {
       if((rbits & 1) != (pbits & 1)) {
-        kb_send_key(j, true, rbits & 1);
+        kb_send_key(HID_KEY_CONTROL_LEFT + j, rbits & 1, report[0]);
       }
       
       rbits = rbits >> 1;
@@ -409,7 +376,7 @@ void kb_usb_receive(u8 const* report, u16 len) {
       
       if(brk) {
         // send break if key not pressed anymore
-        kb_send_key(prev_rpt[i], false, false);
+        kb_send_key(prev_rpt[i], false, report[0]);
       }
     }
   }
@@ -429,7 +396,7 @@ void kb_usb_receive(u8 const* report, u16 len) {
       
       // send make if key was in the current report the first time
       if(make) {
-        kb_send_key(report[i], false, true);
+        kb_send_key(report[i], true, report[0]);
       }
     }
   }
@@ -449,11 +416,10 @@ void kb_receive(u8 byte, u8 prev_byte) {
     case KBH_STATE_SET_KEY_MAKE_TYPEMATIC_FB:
       // Scan code set 3 only
       if (byte < sizeof(scs3keymodemap)) {
-        u8 mask;
         switch (kbhost_state) {
           case KBH_STATE_SET_KEY_MAKE_FD: scs3keymodemap[byte] = KEYMODEMASK_BREAK | KEYMODEMASK_TYPEMATIC; break;
-          case KBH_STATE_SET_KEY_MAKE_BREAK_FC: scs3keymodemap[byte]=KEYMODEMASK_TYPEMATIC; break;
-          case KBH_STATE_SET_KEY_MAKE_TYPEMATIC_FB: scs3keymodemap[byte]=KEYMODEMASK_BREAK; break;
+          case KBH_STATE_SET_KEY_MAKE_BREAK_FC: scs3keymodemap[byte]= KEYMODEMASK_TYPEMATIC; break;
+          case KBH_STATE_SET_KEY_MAKE_TYPEMATIC_FB: scs3keymodemap[byte]= KEYMODEMASK_BREAK; break;
         }
         // we stay in KBH_STATE_SET_KEY.. to be ready to receive the next scancode
       } else {

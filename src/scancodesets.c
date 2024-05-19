@@ -30,97 +30,52 @@
 #include "class/hid/hid.h"
 
 u8 const ext_code_keys_1_2[] = {
-  HID_KEY_APPLICATION,
   HID_KEY_INSERT,
   HID_KEY_HOME,
   HID_KEY_PAGE_UP,
   HID_KEY_DELETE,
   HID_KEY_END,
   HID_KEY_PAGE_DOWN,
-  HID_KEY_ARROW_UP,
+  HID_KEY_ARROW_RIGHT,
   HID_KEY_ARROW_LEFT,
   HID_KEY_ARROW_DOWN,
-  HID_KEY_ARROW_RIGHT,
+  HID_KEY_ARROW_UP,
   HID_KEY_KEYPAD_DIVIDE,
   HID_KEY_KEYPAD_ENTER,
+  HID_KEY_APPLICATION,
+  HID_KEY_POWER,
   0 // End marker
 };
 
 u8 const ext_code_modifier_keys_1_2[] = {
-  3, // KEY_GUI_LEFT
-  4, // KEY_CONTROL_RIGHT
-  7, // KEY_GUI_RIGHT
-  6, // KEY_ALT_RIGHT
+  HID_KEY_GUI_LEFT,
+  HID_KEY_CONTROL_RIGHT,
+  HID_KEY_ALT_RIGHT,
+  HID_KEY_GUI_RIGHT,
   0
 };
 
-u8 const prt_scn_make_1[] = {
-  0xe0,
-  0x2a,
-  0xe0,
-  0x37,
-  0
-};
+u8 const prt_scn_make_1[]  = { 0xe0, 0x2a, 0xe0, 0x37, 0 };
+u8 const prt_scn_break_1[] = { 0xe0, 0xb7, 0xe0, 0xaa, 0 };
+u8 const break_make_1[]    = { 0xe0, 0x46, 0xe0, 0xc6, 0 };
+u8 const pause_make_1[]    = { 0xe1, 0x1d, 0x45, 0xe1, 0x9d, 0xc5, 0 };
 
-u8 const prt_scn_break_1[] = {
-  0xe0,
-  0xb7,
-  0xe0,
-  0xaa,
-  0
-};
-
-u8 const pause_make_1[] = {
-  0xe1,
-  0x1d,
-  0x45,
-  0xe1,
-  0x9d,
-  0xc5,
-  0
-};
-
-u8 const prt_scn_make_2[] = {
-  0xe0,
-  0x12,
-  0xe0,
-  0x7c,
-  0
-};
-
-u8 const prt_scn_break_2[] = {
-  0xe0,
-  0xf0,
-  0x7c,
-  0xe0,
-  0xf0,
-  0x12,
-  0
-};
-
-u8 const pause_make_2[] = {
-  0xe1,
-  0x14,
-  0x77,
-  0xe1,
-  0xf0,
-  0x14,
-  0xf0,
-  0x77,
-  0
-};
+u8 const prt_scn_make_2[]  = { 0xe0, 0x12, 0xe0, 0x7c, 0 };
+u8 const prt_scn_break_2[] = { 0xe0, 0xf0, 0x7c, 0xe0, 0xf0, 0x12, 0 };
+u8 const break_make_2[]    = { 0xe0, 0x7e, 0xe0, 0xf0, 0x7e, 0 };
+u8 const pause_make_2[]    = { 0xe1, 0x14, 0x77, 0xe1, 0xf0, 0x14, 0xf0, 0x77, 0 };
 
 // break codes in set 1 are created from the make code by adding 128 (0x80) or in other words set the msb.
 // this is true even for the extended codes (but 0xe0 stays 0xe0) and the special multi byte codes for print screen and pause
 u8 const mod2ps2_1[] = {
-  0x1D, // L CTRL
-  0x2A, // L SHFT
+  0x1d, // L CTRL
+  0x2a, // L SHFT
   0x38, // L ALT
-  0x5B, // L GUI
-  0x1D, // R CTRL
+  0x5b, // L GUI
+  0x1d, // R CTRL
   0x36, // R SHFT
   0x38, // R ALT
-  0x5C  // R GUI
+  0x5c  // R GUI
 };
 
 u8 const mod2ps2_2[] = {
@@ -138,11 +93,11 @@ u8 const mod2ps2_3[] = {
   0x11, // L CTRL
   0x12, // L SHFT
   0x19, // L ALT
-  0x8B, // L WIN
+  0x8b, // L WIN
   0x58, // R CTRL
   0x59, // R SHFT
   0x39, // R ALT
-  0x8C  // R WIN
+  0x8c  // R WIN
 };
 
 // break codes in set 1 are created from the make code by adding 128 (0x80) or in other words set the msb.
@@ -150,11 +105,11 @@ u8 const mod2ps2_3[] = {
 u8 const hid2ps2_1[] = {
   // 0x00 - 0x0f
   0, 0, 0, 0, // NONE
-  0x1E, // A
+  0x1e, // A
   0x30, // B
-  0x2E, // C
-  0x12, // E
+  0x2e, // C
   0x20, // D
+  0x12, // E
   0x21, // F
   0x22, // G
   0x23, // H
@@ -169,14 +124,14 @@ u8 const hid2ps2_1[] = {
   0x19, // P
   0x10, // Q
   0x13, // R
-  0x1F, // S
+  0x1f, // S
   0x14, // T
   0x16, // U
-  0x2F, // V
+  0x2f, // V
   0x11, // W
-  0x2D, // X
+  0x2d, // X
   0x15, // Y
-  0x2C, // Z
+  0x2c, // Z
   0x02, // 1
   0x03, // 2
   // 0x20 - 0x2f
@@ -186,32 +141,32 @@ u8 const hid2ps2_1[] = {
   0x07, // 6
   0x08, // 7
   0x09, // 8
-  0x0A, // 9
-  0x0B, // 0
-  0x1C, // ENTER
+  0x0a, // 9
+  0x0b, // 0
+  0x1c, // ENTER
   0x01, // ESC
-  0x0E, // BKSP
-  0x0F, // TAB
+  0x0e, // BKSP
+  0x0f, // TAB
   0x39, // SPACE
-  0x0C, // -
-  0x0D, // =
-  0x1A, // [
+  0x0c, // -
+  0x0d, // =
+  0x1a, // [
   // 0x30 - 0x3f
-  0x1B, // ]
-  0x2B, // BACKSLASH
-  0x2B, // EUROPE_1
+  0x1b, // ]
+  0x2b, // BACKSLASH
+  0x2b, // EUROPE_1
   0x27, // ;
   0x28, // ' APOSTROPHE
   0x29, // ` GRAVE
   0x33, // ,
   0x34, // .
   0x35, // /
-  0x3A, // CAPS
-  0x3B, // F1
-  0x3C, // F2
-  0x3D, // F3
-  0x3E, // F4
-  0x3F, // F5
+  0x3a, // CAPS
+  0x3b, // F1
+  0x3c, // F2
+  0x3d, // F3
+  0x3e, // F4
+  0x3f, // F5
   0x40, // F6
   // 0x40 - 0x4f
   0x41, // F7
@@ -227,25 +182,25 @@ u8 const hid2ps2_1[] = {
   0x47, // E0 HOME
   0x49, // E0 PG UP
   0x53, // E0 DELETE
-  0x4F, // E0 END
+  0x4f, // E0 END
   0x51, // E0 PG DN
-  0x4D, // E0 R ARROW
+  0x4d, // E0 R ARROW
   // 0x50 - 0x5f
-  0x4B, // E0 L ARROW
+  0x4b, // E0 L ARROW
   0x50, // E0 D ARROW
   0x48, // E0 U ARROW
   0x45, // NUM
   0x35, // E0 KP /
   0x37, // KP *
-  0x4A, // KP -
-  0x4E, // KP +
-  0x1C, // E0 KP EN
-  0x4F, // KP 1
+  0x4a, // KP -
+  0x4e, // KP +
+  0x1c, // E0 KP EN
+  0x4f, // KP 1
   0x50, // KP 2
   0x51, // KP 3
-  0x4B, // KP 4
-  0x4C, // KP 5
-  0x4D, // KP 6
+  0x4b, // KP 4
+  0x4c, // KP 5
+  0x4d, // KP 6
   0x47, // KP 7
   // 0x60 - 0x6f
   0x48, // KP 8
@@ -253,22 +208,22 @@ u8 const hid2ps2_1[] = {
   0x52, // KP 0
   0x53, // KP .
   0x56, // EUROPE_2
-  0x5D, // E0 APPS
-  0x00,       // POWER
-  0x00,       // KEYPAD_EQUAL
-  0x00,       // F13
-  0x00,       // F14
-  0x00,       // F15
-  0x00,       // F16
-  0x00,       // F17
-  0x00,       // F18
-  0x00,       // F19
-  0x00,       // F20
+  0x5d, // E0 APPS
+  0x5e, // E0 POWER
+  0x49, // KEYPAD_EQUAL
+  0x64, // F13
+  0x65, // F14
+  0x66, // F15
+  0x67, // F16
+  0x68, // F17
+  0x69, // F18
+  0x6a, // F19
+  0x6b, // F20
   // 0x70 - 0x73
-  0x00,       // F21
-  0x00,       // F22
-  0x00,       // F23
-  0x00        // F24
+  0x6c, // F21
+  0x6d, // F22
+  0x6e, // F23
+  0x76  // F24
 };
 
 u8 const hid2ps2_2[] = {
@@ -394,7 +349,6 @@ u8 const hid2ps2_2[] = {
   0x57, // F23
   0x5f  // F24
 };
-
 
 u8 const hid2ps2_3[] = {
   // 0x00 - 0x0f
