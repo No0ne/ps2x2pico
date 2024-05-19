@@ -124,7 +124,7 @@ void kb_resend_last() {
 }
 
 void kb_maybe_send_prefix(u8 key, bool is_modifier_key) {
-  u8 const *l = is_modifier_key?ext_code_modifier_keys_1_2:ext_code_keys_1_2;
+  u8 const *l = is_modifier_key ? ext_code_modifier_keys_1_2 : ext_code_keys_1_2;
   for (int i = 0; l[i]; i++) {
     if (key == l[i]) {
       kb_send(KB_EXT_PFX_E0);
@@ -176,20 +176,20 @@ void kb_set_defaults() {
 }
 
 s64 repeat_cb() {
-  if(key2repeat) {
+  if(key2repeat || is_key2repeat_modifier) {
     if(blinking) return repeat_us;
     
     switch (scancodeset) {
       case SCAN_CODE_SET_1:
         kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
-        is_key2repeat_modifier?kb_send(mod2ps2_1[key2repeat]):kb_send(hid2ps2_1[key2repeat]);
+        is_key2repeat_modifier ? kb_send(mod2ps2_1[key2repeat]) : kb_send(hid2ps2_1[key2repeat]);
       break;
       case SCAN_CODE_SET_2:
         kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
-        is_key2repeat_modifier?kb_send(mod2ps2_2[key2repeat]):kb_send(hid2ps2_2[key2repeat]);
+        is_key2repeat_modifier ? kb_send(mod2ps2_2[key2repeat]) : kb_send(hid2ps2_2[key2repeat]);
       break;
       case SCAN_CODE_SET_3:
-        is_key2repeat_modifier?kb_send(mod2ps2_3[key2repeat]):kb_send(hid2ps2_3[key2repeat]);
+        is_key2repeat_modifier ? kb_send(mod2ps2_3[key2repeat]) : kb_send(hid2ps2_3[key2repeat]);
       break;
       default:
         repeater = 0;
@@ -225,7 +225,7 @@ void kb_send_key_scs1(u8 key, bool is_modifier_key, bool is_key_pressed) {
     }
   }
 
-  u8 scan_code = is_modifier_key?mod2ps2_1[key]:hid2ps2_1[key];
+  u8 scan_code = is_modifier_key ? mod2ps2_1[key] : hid2ps2_1[key];
 
   if (!scan_code) {
     LOG_UNMAPPED_KEY
@@ -275,7 +275,7 @@ void kb_send_key_scs2(u8 key, bool is_modifier_key, bool is_key_pressed) {
     }
   }
 
-  u8 scan_code = is_modifier_key?mod2ps2_2[key]:hid2ps2_2[key];
+  u8 scan_code = is_modifier_key ? mod2ps2_2[key] : hid2ps2_2[key];
 
   if (!scan_code) {
     LOG_UNMAPPED_KEY
@@ -293,9 +293,10 @@ void kb_send_key_scs2(u8 key, bool is_modifier_key, bool is_key_pressed) {
       cancel_alarm(repeater);
     repeater = add_alarm_in_ms(delay_ms, repeat_cb, NULL, false);
   } else {
-    if (key == key2repeat)
+    if (key == key2repeat) {
       key2repeat = 0;
       is_key2repeat_modifier = false;
+    }
     kb_send(KB_BREAK_2_3);
   }
   kb_send(scan_code);
@@ -303,7 +304,7 @@ void kb_send_key_scs2(u8 key, bool is_modifier_key, bool is_key_pressed) {
 
 void kb_send_key_scs3(u8 key, bool is_modifier_key, bool is_key_pressed) {
 
-  u8 scan_code = is_modifier_key?mod2ps2_3[key]:hid2ps2_3[key];
+  u8 scan_code = is_modifier_key ? mod2ps2_3[key] : hid2ps2_3[key];
 
   if (!scan_code) {
     LOG_UNMAPPED_KEY
@@ -325,9 +326,10 @@ void kb_send_key_scs3(u8 key, bool is_modifier_key, bool is_key_pressed) {
 
     kb_send(scan_code);
   } else {
-    if (key == key2repeat)
+    if (key == key2repeat) {
       key2repeat = 0;
       is_key2repeat_modifier = false;
+    }
 
     if (
       (scs3_mode == SCS3_MODE_MAKE_BREAK || scs3_mode == SCS3_MODE_MAKE_BREAK_TYPEMATIC)
@@ -437,7 +439,7 @@ void kb_usb_receive(u8 const* report, u16 len) {
   
   // Only remember the first sizeof(prv_rpt) from the current report at most
   memchr(prev_rpt, sizeof(prev_rpt), 0);
-  memcpy(prev_rpt, report, len<sizeof(prev_rpt)?len:sizeof(prev_rpt));
+  memcpy(prev_rpt, report, len < sizeof(prev_rpt) ? len : sizeof(prev_rpt));
 }
 
 const char* notinscs3_str = "WARNING: Scan code set 3 not set. Ignoring command 0x%x\n";
