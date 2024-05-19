@@ -149,7 +149,6 @@ s64 blink_callback() {
   if(blinking) {
     printf("Blinking keyboard LEDs\n");
     kb_set_leds(KEYBOARD_LED_NUMLOCK | KEYBOARD_LED_CAPSLOCK | KEYBOARD_LED_SCROLLLOCK);
-    kb_send(KB_MSG_SELFTEST_PASSED_AA);
     blinking = false;
     return 500000;
   }
@@ -177,8 +176,6 @@ void kb_set_defaults() {
 
 s64 repeat_cb() {
   if(key2repeat || is_key2repeat_modifier) {
-    if(blinking) return repeat_us;
-    
     switch (scancodeset) {
       case SCAN_CODE_SET_1:
         kb_maybe_send_prefix(key2repeat,is_key2repeat_modifier);
@@ -505,6 +502,7 @@ void kb_receive(u8 byte, u8 prev_byte) {
           // We only set defaults, we do not actually reset ourselves.
           kb_set_defaults();
           kb_send(KB_MSG_ACK_FA);
+          kb_send(KB_MSG_SELFTEST_PASSED_AA);
         return;
 
         case KBHOSTCMD_RESEND_FE:
