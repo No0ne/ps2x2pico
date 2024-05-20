@@ -35,7 +35,7 @@ if (MS_RATE_HOST_CONTROL)
 endif()
 
 pico_set_program_name(ps2x2pico "ps2x2pico")
-pico_set_program_version(ps2x2pico "1.0")
+pico_set_program_version(ps2x2pico "1.1")
 
 pico_enable_stdio_uart(ps2x2pico 1)
 pico_enable_stdio_usb(ps2x2pico 0)
