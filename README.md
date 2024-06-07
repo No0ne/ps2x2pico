@@ -19,46 +19,30 @@ Keyboard only (incl. PC-XT) variant: https://github.com/No0ne/ps2pico
 * 3.3V/5V conversion is done using a bi-directional level shifter: https://learn.sparkfun.com/tutorials/bi-directional-logic-level-converter-hookup-guide/
 * Afterwards connect a USB keyboard and/or mouse using an OTG-adapter and optional USB hub.
 * Also works with wireless keyboards and mice with a dedicated USB receiver.
-```
-                   _________________
-                  |                 |
-Pico GPIO11 ______| LV1         HV1 |______ PS/2 keyboard data
-Pico GPIO12 ______| LV2         HV2 |______ PS/2 keyboard clock
-Pico GPIO13 ______| LV          HV  |______ PS/2 5V + Pico VBUS
-Pico    GND ______| GND         GND |______ PS/2 GND
-Pico GPIO14 ______| LV3         HV3 |______ PS/2 mouse data
-Pico GPIO15 ______| LV4         HV4 |______ PS/2 mouse clock
-                  |_________________|
-```
-⚠️ Please note that some older motherboards have non-resettable fuses rated under 300mA.
 
-**Check the power consumtion of your keyboard/mouse/hub first before plugging in!**
 
-# Pinout diagram
-```
-  Plug (device)        Socket (motherboard)
-       _ _                     _ _
-    =       =               =       =
-  =  5  #  6  =           =  6  #  5  =
- =  3   #   4  =         =  4   #   3  =
- =             =         =             =
-  =   1   2   =           =   2   1   =
-    =       =               =       =
-       ~ ~                     ~ ~
-```
-1. Data
-2. unsed (mouse data on dualport)
-3. GND
-4. +5V
-5. Clock
-6. unused (mouse clock on dualport)
+⚠️ Please note that some older motherboards have non-resettable fuses rated
+under 300mA.
 
+**Check the power consumption of your keyboard/mouse/hub first before plugging
+in!**
+
+![Level Shifter wiring diagram](Level_shifter_diagram.svg)
+
+![PS/2 Pinout diagram](MiniDIN-6_Connector_Pinout_both_sides_CC0.svg)
+
+⚠️ Do not assume wire colors will match cables depicted in photos. Double-check
+your pinout with a multimeter.
 
 # Troubleshooting
 You can hook up a USB serial adapter to **GPIO0** for additional debugging output. The serial settings are **115200** baud, **8** data bits and **no parity**. You can also use another Pico running the [pico-uart-bridge](https://github.com/Noltari/pico-uart-bridge) for this.
 
-⚠️ If you have a **YD-RP2040** you need to bridge all three pads of the diode near the USB-C port as seen here: https://github.com/No0ne/ps2x2pico/issues/33#issuecomment-2066736110
-Otherwise no power would be sent to the devices connected to the USB-C port.
+
+⚠️ If you have a **YD-RP2040** (see silkscreen on back of board if unsure) and
+are not using a USB hub with its own power supply, you need to bridge two pads
+of the diode pair near the USB-C port as seen here:
+
+![Fix for YD-RP2040](YD-RP2040_fix.svg)
 
 # Build
 (update to the latest TinyUSB release first)
