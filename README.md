@@ -27,9 +27,9 @@ under 300mA.
 **Check the power consumption of your keyboard/mouse/hub first before plugging
 in!**
 
-![Level Shifter wiring diagram](Level_shifter_diagram.svg)
+![Level Shifter wiring diagram](doc/Level_shifter_diagram.svg)
 
-![PS/2 Pinout diagram](MiniDIN-6_Connector_Pinout_both_sides_CC0.svg)
+![PS/2 Pinout diagram](doc/MiniDIN-6_Connector_Pinout_both_sides_CC0.svg)
 
 ⚠️ Do not assume wire colors will match cables depicted in photos. Double-check
 your pinout with a multimeter.
@@ -42,7 +42,7 @@ You can hook up a USB serial adapter to **GPIO0** for additional debugging outpu
 are not using a USB hub with its own power supply, you need to bridge two pads
 of the diode pair near the USB-C port as seen here:
 
-![Fix for YD-RP2040](YD-RP2040_fix.svg)
+![Fix for YD-RP2040](doc/YD-RP2040_fix.svg)
 
 # Build
 (update to the latest TinyUSB release first)
