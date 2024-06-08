@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,8 +24,11 @@
  *
  */
 
-#include "ps2phy.h"
-ps2phy ms_phy;
+#include "tusb.h"
+#include "ps2out.h"
+#include "ps2in.h"
+ps2out ms_out;
+ps2in ms_in;
 
 #ifndef MS_RATE_DEFAULT
   #define MS_RATE_HOST_CONTROL
@@ -51,7 +54,7 @@ void ms_reset() {
 }
 
 void ms_send(u8 byte) {
-  queue_try_add(&ms_phy.qbytes, &byte);
+  queue_try_add(&ms_out.qbytes, &byte);
 }
 
 s64 ms_reset_callback() {
@@ -112,7 +115,7 @@ void ms_send_packet(u8 buttons, s16 x, s16 y, s8 z) {
 s64 ms_send_callback() {
   if(!ms_streaming) return 0;
   
-  if(!ms_phy.busy) {
+  if(!ms_out.busy) {
     ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz);
     ms_dx = ms_remain_xyz(ms_dx);
     ms_dy = ms_remain_xyz(ms_dy);
@@ -200,11 +203,13 @@ void ms_receive(u8 byte, u8 prev_byte) {
 }
 
 bool ms_task() {
-  ps2phy_task(&ms_phy);
-  return ms_streaming && !ms_phy.busy;
+  ps2out_task(&ms_out);
+  ps2in_task(&ms_in, &ms_out);
+  return ms_streaming && !ms_out.busy;
 }
 
-void ms_init(u8 gpio) {
-  ps2phy_init(&ms_phy, pio0, gpio, &ms_receive);
+void ms_init(u8 gpio_out, u8 gpio_in) {
+  ps2out_init(&ms_out, pio0, gpio_out, &ms_receive);
+  ps2in_init(&ms_in, pio1, gpio_in);
   ms_reset_callback();
 }

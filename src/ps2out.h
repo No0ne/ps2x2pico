@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -28,6 +28,7 @@
 #include "pico/util/queue.h"
 #include "ps2x2pico.h"
 
+u32 ps2_frame(u8 byte);
 typedef void (*rx_callback)(u8 byte, u8 prev_byte);
 
 typedef struct {
@@ -40,7 +41,7 @@ typedef struct {
   u8 last_tx;
   u8 sent;
   u8 busy;
-} ps2phy;
+} ps2out;
 
-void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx);
-void ps2phy_task(ps2phy* this);
+void ps2out_init(ps2out* this, PIO pio, u8 data_pin, rx_callback rx);
+void ps2out_task(ps2out* this);

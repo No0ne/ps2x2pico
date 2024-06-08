@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -167,13 +167,16 @@ void main() {
   board_init();
   printf("\n%s-%s\n", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING);
   
-  gpio_init(LVPWR);
-  gpio_set_dir(LVPWR, GPIO_OUT);
-  gpio_put(LVPWR, 1);
+  gpio_init(LVOUT);
+  gpio_init(LVIN);
+  gpio_set_dir(LVOUT, GPIO_OUT);
+  gpio_set_dir(LVIN, GPIO_OUT);
+  gpio_put(LVOUT, 1);
+  gpio_put(LVIN, 1);
   
   tusb_init();
-  kb_init(KBDAT);
-  ms_init(MSDAT);
+  kb_init(KBOUT, KBIN);
+  ms_init(MSOUT, MSIN);
   
   while(1) {
     tuh_task();

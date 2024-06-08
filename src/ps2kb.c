@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,11 +25,13 @@
  */
 
 #include "tusb.h"
-#include "ps2phy.h"
+#include "ps2out.h"
+#include "ps2in.h"
 #include "hardware/watchdog.h"
 #include "scancodesets.h"
 
-ps2phy kb_phy;
+ps2out kb_out;
+ps2in kb_in;
 
 #define KBHOSTCMD_RESET_FF 0xff
 #define KBHOSTCMD_RESEND_FE 0xfe
@@ -114,12 +116,12 @@ void kb_send(u8 byte) {
   if (byte != KB_MSG_RESEND_FE)
     last_byte_sent = byte;
   printf("kb > host %02x\n", byte);
-  queue_try_add(&kb_phy.qbytes, &byte);
+  queue_try_add(&kb_out.qbytes, &byte);
 }
 
 void kb_resend_last() {
   printf("r: k>h %x\n", last_byte_sent);
-  queue_try_add(&kb_phy.qbytes, &last_byte_sent);
+  queue_try_add(&kb_out.qbytes, &last_byte_sent);
 }
 
 void kb_maybe_send_prefix(u8 key) {
@@ -143,6 +145,7 @@ void kb_send_sc_list(const u8 *list) {
 void kb_set_leds(u8 byte) {
   if(byte > 7) byte = 0;
   tuh_kb_set_leds(led2ps2[byte]);
+  ps2in_set(&kb_in, 0xed, byte);
 }
 
 s64 blink_callback() {
@@ -172,6 +175,7 @@ void kb_set_defaults() {
   blinking = true;
   memchr(prev_rpt, sizeof(prev_rpt), 0);
   add_alarm_in_ms(100, blink_callback, NULL, false);
+  ps2in_reset(&kb_in);
 }
 
 s64 repeat_cb() {
@@ -438,6 +442,7 @@ void kb_receive(u8 byte, u8 prev_byte) {
     case KBH_STATE_SET_TYPEMATIC_PARAMS_F3:
       repeat_us = repeats[byte & 0x1f];
       delay_ms = delays[(byte & 0x60) >> 5];
+      ps2in_set(&kb_in, 0xf3, byte);
       kbhost_state = KBH_STATE_IDLE;
     break;
 
@@ -618,12 +623,14 @@ void kb_receive(u8 byte, u8 prev_byte) {
 }
 
 bool kb_task() {
-  ps2phy_task(&kb_phy);
-  return kb_enabled && !kb_phy.busy;// TODO: return value can probably be void
+  ps2out_task(&kb_out);
+  ps2in_task(&kb_in, &kb_out);
+  return kb_enabled && !kb_out.busy;// TODO: return value can probably be void
 }
 
-void kb_init(u8 gpio) {
-  ps2phy_init(&kb_phy, pio0, gpio, &kb_receive);
+void kb_init(u8 gpio_out, u8 gpio_in) {
+  ps2out_init(&kb_out, pio0, gpio_out, &kb_receive);
+  ps2in_init(&kb_in, pio1, gpio_in);
   kb_set_defaults();
   kb_send(KB_MSG_SELFTEST_PASSED_AA);
 }

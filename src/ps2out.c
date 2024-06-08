@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2022 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2024 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -24,13 +24,13 @@
  *
  */
  
-#include "ps2phy.h"
-#include "ps2phy.pio.h"
+#include "ps2out.h"
+#include "ps2out.pio.h"
 
-s8 prog = -1;
-u8 locked = 0;
+s8 ps2out_prog = -1;
+u8 ps2out_locked = 0;
 
-u32 ps2phy_frame(u8 byte) {
+u32 ps2_frame(u8 byte) {
   bool parity = 1;
   for(u8 i = 0; i < 8; i++) {
     parity = parity ^ (byte >> i & 1);
@@ -38,16 +38,16 @@ u32 ps2phy_frame(u8 byte) {
   return ((1 << 10) | (parity << 9) | (byte << 1)) ^ 0x7ff;
 }
 
-void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx) {
-  if(prog == -1) {
-    prog = pio_add_program(pio, &ps2phy_program);
+void ps2out_init(ps2out* this, PIO pio, u8 data_pin, rx_callback rx) {
+  if(ps2out_prog == -1) {
+    ps2out_prog = pio_add_program(pio, &ps2out_program);
   }
   
   queue_init(&this->qbytes, sizeof(u8), 9);
   queue_init(&this->qpacks, sizeof(u8) * 9, 16);
   
   this->sm = pio_claim_unused_sm(pio, true);
-  ps2phy_program_init(pio, this->sm, prog, data_pin);
+  ps2out_program_init(pio, this->sm, ps2out_prog, data_pin);
   
   this->pio = pio;
   this->sent = 0;
@@ -57,7 +57,7 @@ void ps2phy_init(ps2phy* this, PIO pio, u8 data_pin, rx_callback rx) {
   this->busy = 0;
 }
 
-void ps2phy_task(ps2phy* this) {
+void ps2out_task(ps2out* this) {
   u8 i = 0;
   u8 byte;
   u8 pack[9];
@@ -83,9 +83,9 @@ void ps2phy_task(ps2phy* this) {
     pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
-  if(locked) locked--;
+  if(ps2out_locked) ps2out_locked--;
   
-  if(!queue_is_empty(&this->qpacks) && !this->busy && !locked) {
+  if(!queue_is_empty(&this->qpacks) && !this->busy && !ps2out_locked) {
     if(queue_try_peek(&this->qpacks, &pack)) {
       if(this->sent == pack[0]) {
         this->sent = 0;
@@ -94,8 +94,8 @@ void ps2phy_task(ps2phy* this) {
         this->sent++;
         this->last_tx = pack[this->sent];
         this->busy |= 2;
-        locked = 255;
-        pio_sm_put(this->pio, this->sm, ps2phy_frame(this->last_tx));
+        ps2out_locked = 255;
+        pio_sm_put(this->pio, this->sm, ps2_frame(this->last_tx));
       }
     }
   }
@@ -109,12 +109,12 @@ void ps2phy_task(ps2phy* this) {
     }
     
     if(parity != fifo >> 8) {
-      pio_sm_put(this->pio, this->sm, ps2phy_frame(0xfe));
+      pio_sm_put(this->pio, this->sm, ps2_frame(0xfe));
       return;
     }
     
     if((fifo & 0xff) == 0xfe) {
-      pio_sm_put(this->pio, this->sm, ps2phy_frame(this->last_tx));
+      pio_sm_put(this->pio, this->sm, ps2_frame(this->last_tx));
       return;
     }
     

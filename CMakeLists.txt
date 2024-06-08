@@ -20,13 +20,21 @@ project(ps2x2pico C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-add_executable(ps2x2pico src/ps2x2pico.c src/ps2phy.c src/ps2kb.c src/ps2ms.c src/scancodesets.c)
+add_executable(ps2x2pico src/ps2x2pico.c src/scancodesets.c src/ps2kb.c src/ps2ms.c src/ps2out.c src/ps2in.c)
 
-pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2phy.pio)
+pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2out.pio)
+pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2in.pio)
 
-add_compile_definitions(LVPWR=13) # Level shifter pull-up voltage
-add_compile_definitions(KBDAT=11) # Keyboard data pin, clock pin is 12 (data pin+1)
-add_compile_definitions(MSDAT=14) # Mouse data pin, clock pin is 15 (data pin+1)
+### PS/2 output
+add_compile_definitions(LVOUT=13) # Level shifter pull-up voltage
+add_compile_definitions(KBOUT=11) # Keyboard data pin, clock pin is 12
+add_compile_definitions(MSOUT=14) # Mouse data pin, clock pin is 15
+
+### PS/2 input
+add_compile_definitions(LVIN=5) # Level shifter pull-up voltage
+add_compile_definitions(KBIN=3) # Keyboard data pin, clock pin is 4
+add_compile_definitions(MSIN=6) # Mouse data pin, clock pin is 7
+
 add_compile_definitions(PICO_PANIC_FUNCTION=reset)
 
 add_compile_definitions(MS_RATE_DEFAULT=${MS_RATE_DEFAULT})
