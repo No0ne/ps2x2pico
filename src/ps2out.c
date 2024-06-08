@@ -24,8 +24,8 @@
  *
  */
  
-#include "ps2phy.h"
-#include "ps2phy.pio.h"
+#include "ps2out.h"
+#include "ps2out.pio.h"
 
 s8 ps2out_prog = -1;
 u8 ps2out_locked = 0;
@@ -83,7 +83,7 @@ void ps2out_task(ps2out* this) {
     pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
-  if(ps2out_locked) locked--;
+  if(ps2out_locked) ps2out_locked--;
   
   if(!queue_is_empty(&this->qpacks) && !this->busy && !ps2out_locked) {
     if(queue_try_peek(&this->qpacks, &pack)) {

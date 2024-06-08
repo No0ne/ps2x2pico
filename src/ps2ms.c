@@ -115,7 +115,7 @@ void ms_send_packet(u8 buttons, s16 x, s16 y, s8 z) {
 s64 ms_send_callback() {
   if(!ms_streaming) return 0;
   
-  if(!ms_phy.busy) {
+  if(!ms_out.busy) {
     ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz);
     ms_dx = ms_remain_xyz(ms_dx);
     ms_dy = ms_remain_xyz(ms_dy);

@@ -25,7 +25,8 @@
  */
 
 #include "tusb.h"
-#include "ps2phy.h"
+#include "ps2out.h"
+#include "ps2in.h"
 #include "hardware/watchdog.h"
 #include "scancodesets.h"
 
@@ -120,7 +121,7 @@ void kb_send(u8 byte) {
 
 void kb_resend_last() {
   printf("r: k>h %x\n", last_byte_sent);
-  queue_try_add(&kb_phy.qbytes, &last_byte_sent);
+  queue_try_add(&kb_out.qbytes, &last_byte_sent);
 }
 
 void kb_maybe_send_prefix(u8 key) {
@@ -627,7 +628,7 @@ bool kb_task() {
   return kb_enabled && !kb_out.busy;// TODO: return value can probably be void
 }
 
-void kb_init(u8 gpio) {
+void kb_init(u8 gpio_out, u8 gpio_in) {
   ps2out_init(&kb_out, pio0, gpio_out, &kb_receive);
   ps2in_init(&kb_in, pio1, gpio_in);
   kb_set_defaults();
