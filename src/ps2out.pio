@@ -9,7 +9,7 @@
 .side_set 1 opt pindirs
 
 restart:
-  set    pindirs, 0                 // set clock to input mode
+  set    pindirs, 0             [1] // set clock to input mode
   irq    clear 0 rel     side 0     // clear busy flag, set data to input mode
 
 receivecheck:
@@ -25,18 +25,18 @@ receivecheck:
   jmp    restart                    // not receiving
 
 receive:
-  set    pindirs, 1             [6] // clock low
-  set    x, 8                       // set loop counter
+  set    x, 8                   [7] // set loop counter
+  set    pindirs, 1             [7] // clock low
 
 receiveloop:
-  set    pindirs, 0             [6] // clock high
-  in     pins, 1                [4] // read a bit into ISR
+  set    pindirs, 0             [7] // clock high
+  in     pins, 1                [6] // read a bit into ISR
   set    pindirs, 1             [6] // clock low
-  jmp    x--, receiveloop       [4] // iterate
-  set    pindirs, 0             [6] // clock high
+  jmp    x--, receiveloop       [6] // iterate
+  set    pindirs, 0             [7] // clock high
   nop                    side 1 [6] // data low
   set    pindirs, 1             [7] // clock low
-  jmp    restart                [7]
+  jmp    restart                [5]
 
 sendcheck:
   jmp    !osre, send                // see if we have data to send
@@ -47,16 +47,16 @@ send:
   set    x, 10                      // number of bits to write out
 
 sendloop:
-  set    pindirs, 0             [6] // clock set to input (high)
+  set    pindirs, 0             [5] // clock set to input (high)
   jmp    pin, sendcontinue          // if clock is high, host is still receiving data
   out    null, 32                   // clock was low, clear OSR
   irq    wait 4 rel                 // host wants to send data, notify of failure to send data
   jmp    restart                    // and wait for restart
 
 sendcontinue:
-  out    pindirs, 1             [6] // write out data
-  set    pindirs, 1             [6] // set clock low
-  jmp    x--, sendloop          [6]
+  out    pindirs, 1             [5] // write out data
+  set    pindirs, 1             [5] // set clock low
+  jmp    x--, sendloop          [5]
 
 % c-sdk {
   void ps2out_program_init(PIO pio, uint sm, uint offset, uint dat) {
@@ -67,7 +67,7 @@ sendcontinue:
     pio_gpio_init(pio, dat);
     
     // Use a frequency high enough to effectivly sample clock and data.
-    sm_config_set_clkdiv(&c, 427); // 2560 is 20 µs,  640 is 5 µs,  427 is 3.3333 µs
+    sm_config_set_clkdiv(&c, 320); // 2.5 µs
     sm_config_set_jmp_pin(&c, clk);
     sm_config_set_set_pins(&c, clk, 1);
     sm_config_set_sideset_pins(&c, dat);

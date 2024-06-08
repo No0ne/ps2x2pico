@@ -79,7 +79,7 @@ void ps2out_task(ps2out* this) {
   }
   
   if(pio_interrupt_get(this->pio, this->sm + 4)) {
-    this->sent--;
+    if(this->sent > 0) this->sent--;
     pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
