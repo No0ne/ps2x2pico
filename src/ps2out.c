@@ -83,7 +83,7 @@ void ps2out_task(ps2out* this) {
     pio_interrupt_clear(this->pio, this->sm + 4);
   }
   
-  if(ps2out_locked) ps2out_locked--;
+  if(ps2out_locked && !this->busy) ps2out_locked--;
   
   if(!queue_is_empty(&this->qpacks) && !this->busy && !ps2out_locked) {
     if(queue_try_peek(&this->qpacks, &pack)) {
@@ -94,7 +94,7 @@ void ps2out_task(ps2out* this) {
         this->sent++;
         this->last_tx = pack[this->sent];
         this->busy |= 2;
-        ps2out_locked = 255;
+        ps2out_locked = 160;
         pio_sm_put(this->pio, this->sm, ps2_frame(this->last_tx));
       }
     }
