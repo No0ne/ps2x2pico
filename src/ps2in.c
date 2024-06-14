@@ -28,6 +28,8 @@
 #include "ps2in.pio.h"
 
 s8 ps2in_prog = -1;
+u8 ps2in_msi = 0;
+u8 ps2in_msb[] = { 0, 0, 0, 0 };
 
 void ps2in_init(ps2in* this, PIO pio, u8 data_pin) {
   if(ps2in_prog == -1) {
@@ -37,38 +39,88 @@ void ps2in_init(ps2in* this, PIO pio, u8 data_pin) {
   this->sm = pio_claim_unused_sm(pio, true);
   ps2in_program_init(pio, this->sm, ps2in_prog, data_pin);
   this->pio = pio;
+  this->state = 0;
 }
 
 void ps2in_task(ps2in* this, ps2out* out) {
   if(!pio_sm_is_rx_fifo_empty(this->pio, this->sm)) {
-    u8 byte = pio_sm_get(this->pio, this->sm) >> 23;
+    u32 fifo = pio_sm_get(this->pio, this->sm) >> 23;
     
-    printf("%02x %02x\n", this->sm, byte);
+    bool parity = 1;
+    for(u8 i = 0; i < 8; i++) {
+      parity = parity ^ (fifo >> i & 1);
+    }
     
-    /* if(byte == 0x00 && this->byte_next == 0xaa) {
-      pio_sm_put(this->pio, this->sm, ps2_frame(0xf4));
-    } else { //if(byte != 0xfa) {
-      queue_try_add(&out->qbytes, &byte);
-    } */
+    if(parity != fifo >> 8) {
+      pio_sm_put(this->pio, this->sm, ps2_frame(0xfe));
+      return;
+    }
     
-    this->byte_next = byte;
+    u8 byte = fifo;
+    //printf("** ps2in  sm %02x  byte %02x\n", this->sm, byte);
     
-    /*if(byte < 0x80 || byte == 0x83 || byte == 0x84 || byte == 0xe0 || byte == 0xf0) {
-      queue_try_add(&out->qbytes, &byte);
+    //if((fifo & 0xff) == 0xfe) {
+    //  pio_sm_put(this->pio, this->sm, ps2_frame(this->last_tx));
+    //  return;
+    //}
+    
+    if(byte == 0xaa && this->state) {
+      this->state = this->sm ? 2 : 10;
+      printf("** ps2in  sm %02x  reset successful!\n", this->sm);
+    }
+    
+    if(this->sm == 0) {
+      if(byte == 0xfa && this->state == 9) {
+        this->state = 10;
+        pio_sm_put(this->pio, this->sm, ps2_frame(this->byte));
+      }
       
-    } else if(byte == 0xfa && this->send_next) {
-      this->send_next = false;
-      pio_sm_put(this->pio, this->sm, ps2_frame(this->byte_next));
-    }*/
+      if(byte != 0xfa && this->state == 10) {
+        queue_try_add(&out->qbytes, &byte);
+      }
+    }
+    
+    if(this->sm == 1) {
+      if(this->state == 10) {
+        
+        ps2in_msb[ps2in_msi] = byte;
+        ps2in_msi++;
+        
+        if(ps2in_msi == 4) {
+          ps2in_msi = 0;
+          ms_send_movement(ps2in_msb[0] & 0x7, ps2in_msb[1], 0x100 - ps2in_msb[2], 0x100 - ps2in_msb[3]);
+        }
+        
+      } else {
+        
+        if(byte == 0xfa && this->state == 9) {
+          ps2in_msi = 0;
+          this->state = 10;
+        }
+        
+        u8 init[] = { 0xaa, 0x00, 0xf3, 0xc8, 0xf3, 0x64, 0xf3, 0x50, 0xf4 };
+        
+        if(byte == init[1] && this->state == 2 || byte == 0xfa && this->state > 2 && this->state < 9) {
+          pio_sm_put(this->pio, this->sm, ps2_frame(init[this->state]));
+          this->state++;
+        }
+        
+      }
+    }
   }
 }
 
 void ps2in_reset(ps2in* this) {
+  this->state = 1;
+  printf("** ps2in reset sm %02x\n", this->sm);
   pio_sm_put(this->pio, this->sm, ps2_frame(0xff));
 }
 
 void ps2in_set(ps2in* this, u8 command, u8 byte) {
-  pio_sm_put(this->pio, this->sm, ps2_frame(command));
-  this->byte_next = byte;
-  this->send_next = true;
+  if(this->state == 10) {
+    printf("** ps2in  cmd %02x  byte %02x\n", command, byte);
+    pio_sm_put(this->pio, this->sm, ps2_frame(command));
+    this->byte = byte;
+    this->state = 9;
+  }
 }

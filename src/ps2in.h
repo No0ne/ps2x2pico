@@ -29,11 +29,12 @@
 typedef struct {
   PIO pio;
   uint sm;
-  bool send_next;
-  u8 byte_next;
+  u8 state;
+  u8 byte;
 } ps2in;
 
 void ps2in_init(ps2in* this, PIO pio, u8 data_pin);
 void ps2in_task(ps2in* this, ps2out* out);
 void ps2in_reset(ps2in* this);
 void ps2in_set(ps2in* this, u8 command, u8 byte);
+void ms_send_movement(u8 buttons, s8 x, s8 y, s8 z);

@@ -60,6 +60,7 @@ void ms_send(u8 byte) {
 s64 ms_reset_callback() {
   ms_send(0xaa);
   ms_send(ms_type);
+  ps2in_reset(&ms_in);
   return 0;
 }
 
