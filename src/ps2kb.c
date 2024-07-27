@@ -173,7 +173,6 @@ void kb_set_defaults() {
   repeat_us = 91743;
   delay_ms = 500;
   blinking = true;
-  memchr(prev_rpt, sizeof(prev_rpt), 0);
   add_alarm_in_ms(100, blink_callback, NULL, false);
   ps2in_reset(&kb_in);
 }
@@ -405,8 +404,7 @@ void kb_usb_receive(u8 const* report, u16 len) {
     }
   }
   
-  // Only remember the first sizeof(prv_rpt) from the current report at most
-  memchr(prev_rpt, sizeof(prev_rpt), 0);
+  // Only remember the first sizeof(prev_rpt) from the current report at most
   memcpy(prev_rpt, report, len < sizeof(prev_rpt) ? len : sizeof(prev_rpt));
 }
 
@@ -424,6 +422,7 @@ void kb_receive(u8 byte, u8 prev_byte) {
           case KBH_STATE_SET_KEY_MAKE_FD: scs3keymodemap[byte] = KEYMODEMASK_BREAK | KEYMODEMASK_TYPEMATIC; break;
           case KBH_STATE_SET_KEY_MAKE_BREAK_FC: scs3keymodemap[byte]= KEYMODEMASK_TYPEMATIC; break;
           case KBH_STATE_SET_KEY_MAKE_TYPEMATIC_FB: scs3keymodemap[byte]= KEYMODEMASK_BREAK; break;
+          default: break; // do nothing
         }
         // we stay in KBH_STATE_SET_KEY.. to be ready to receive the next scancode
       } else {
@@ -454,7 +453,6 @@ void kb_receive(u8 byte, u8 prev_byte) {
         case SCAN_CODE_SET_1:
         case SCAN_CODE_SET_2:
         case SCAN_CODE_SET_3:
-          memchr(scs3keymodemap,0,sizeof(scs3keymodemap));
           set_scancodeset(byte);
           break;
         default:
@@ -517,7 +515,6 @@ void kb_receive(u8 byte, u8 prev_byte) {
           printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_TYPEMATIC_FA\n");
           if (scancodeset == SCAN_CODE_SET_3) {
             scs3_mode = SCS3_MODE_MAKE_BREAK_TYPEMATIC;
-            memchr(scs3keymodemap,0,sizeof(scs3keymodemap));
           } else {
             printf(notinscs3_str,byte);
           }
@@ -528,7 +525,6 @@ void kb_receive(u8 byte, u8 prev_byte) {
           printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_F9\n");
           if (scancodeset == SCAN_CODE_SET_3) {
             scs3_mode = SCS3_MODE_MAKE;
-            memchr(scs3keymodemap,0,sizeof(scs3keymodemap));
           } else {
             printf(notinscs3_str,byte);
           }
@@ -540,7 +536,6 @@ void kb_receive(u8 byte, u8 prev_byte) {
           if (scancodeset == SCAN_CODE_SET_3) {
             printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_BREAK_F8\n");
             scs3_mode = SCS3_MODE_MAKE_BREAK;
-            memchr(scs3keymodemap,0,sizeof(scs3keymodemap));
           } else {
             printf(notinscs3_str,byte);
           }
@@ -551,7 +546,6 @@ void kb_receive(u8 byte, u8 prev_byte) {
           if (scancodeset == SCAN_CODE_SET_3) {
             printf("KBHOSTCMD_SCS3_SET_ALL_MAKE_TYPEMATIC_F7\n");
             scs3_mode = SCS3_MODE_MAKE_TYPEMATIC;
-            memchr(scs3keymodemap,0,sizeof(scs3keymodemap));
           } else {
             printf(notinscs3_str,byte);
           }

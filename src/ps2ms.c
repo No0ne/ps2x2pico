@@ -54,6 +54,7 @@ void ms_reset() {
 }
 
 void ms_send(u8 byte) {
+  if(!ms_streaming) printf("ms > host %02x\n", byte);
   queue_try_add(&ms_out.qbytes, &byte);
 }
 
@@ -141,6 +142,7 @@ void ms_usb_receive(u8 const* report) {
 }
 
 void ms_receive(u8 byte, u8 prev_byte) {
+  if(!ms_streaming) printf("host > ms %02x\n", byte);
   switch (prev_byte) {
     case 0xf3: // Set Sample Rate
       #ifdef MS_RATE_HOST_CONTROL
@@ -163,8 +165,10 @@ void ms_receive(u8 byte, u8 prev_byte) {
         case 0xff: // Reset
           add_alarm_in_ms(100, ms_reset_callback, NULL, false);
           ms_type = 0;
+          // fall through
         case 0xf6: // Set Defaults
           ms_rate = MS_RATE_DEFAULT;
+          // fall through
         case 0xf5: // Disable Data Reporting
           ms_streaming = false;
           ms_reset();

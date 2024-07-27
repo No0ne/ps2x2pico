@@ -86,6 +86,12 @@ void ps2in_task(ps2in* this, ps2out* out) {
         ps2in_msb[ps2in_msi] = byte;
         ps2in_msi++;
         
+        /*if(ps2in_msi == 3) {
+          ps2in_msi = 0;
+          ms_send_movement(/ *ps2in_msb[0] & 0x7* /0, ps2in_msb[1], 0x100 - ps2in_msb[2], 0);
+          printf(" %02x %02x \n", ps2in_msb[1], ps2in_msb[2]);
+        }*/
+        
         if(ps2in_msi == 4) {
           ps2in_msi = 0;
           ms_send_movement(ps2in_msb[0] & 0x7, ps2in_msb[1], 0x100 - ps2in_msb[2], 0x100 - ps2in_msb[3]);
@@ -100,7 +106,7 @@ void ps2in_task(ps2in* this, ps2out* out) {
         
         u8 init[] = { 0xaa, 0x00, 0xf3, 0xc8, 0xf3, 0x64, 0xf3, 0x50, 0xf4 };
         
-        if(byte == init[1] && this->state == 2 || byte == 0xfa && this->state > 2 && this->state < 9) {
+        if((byte == init[1] && this->state == 2) || (byte == 0xfa && this->state > 2 && this->state < 9)) {
           pio_sm_put(this->pio, this->sm, ps2_frame(init[this->state]));
           this->state++;
         }
