@@ -122,14 +122,14 @@ void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
   printf("HID(%d,%d) unmounted\n", dev_addr, instance);
   board_led_write(0);
   
-  //if(dev_addr == kb_addr && instance == kb_inst) {
+  if(dev_addr == kb_addr && instance == kb_inst) {
     kb_addr = 0;
     kb_inst = 0;
-  //}
-  tuh_deinit(TUH_OPT_RHPORT);
-  printf("deinit(%d)\n", TUH_OPT_RHPORT);
-  tusb_init();
-  printf("init()\n");
+  }
+  //tuh_deinit(TUH_OPT_RHPORT);
+  //printf("deinit(%d)\n", TUH_OPT_RHPORT);
+  //tusb_init();
+  //printf("init()\n");
 }
 
 void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
