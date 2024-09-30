@@ -45,6 +45,19 @@ of the diode pair near the USB-C port as seen here:
 ![Fix for YD-RP2040](doc/YD-RP2040_fix.svg)
 
 # Build
+
+Get the Raspberry Pi Pico SDK.
+
+```sh
+git clone https://github.com/raspberrypi/pico-sdk
+```
+
+Install needed libraries and tools.
+
+```sh
+sudo apt install cmake gcc-arm-none-eabi build-essential pkg-config libusb-1.0-0-dev libusb-1.0-0
+```
+
 (update to the latest TinyUSB release first)
 ```
 export PICO_SDK_PATH=/path/to/pico-sdk
