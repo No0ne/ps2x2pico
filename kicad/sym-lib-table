@@ -1,0 +1,4 @@
+(sym_lib_table
+  (lib (name "Logic_Level_Bidirectional-eagle-import")(type "KiCad")(uri "${KIPRJMOD}/Logic_Level_Bidirectional-eagle-import.kicad_sym")(options "")(descr ""))
+  (lib (name "library")(type "KiCad")(uri "${KIPRJMOD}/library.kicad_sym")(options "")(descr ""))
+)

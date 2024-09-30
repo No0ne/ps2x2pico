@@ -1,0 +1,4 @@
+(fp_lib_table
+  (lib (name "Logic_Level_Bidirectional")(type "KiCad")(uri "$(KIPRJMOD)/ps2_pico_hat.pretty")(options "")(descr ""))
+  (lib (name "Library")(type "KiCad")(uri "${KIPRJMOD}/Library.pretty")(options "")(descr ""))
+)
