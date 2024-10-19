@@ -1010,6 +1010,12 @@
   )
 
   (gr_rect (start 119.634 77.978) (end 98.044 130.302) (layer "Edge.Cuts") (width 0.05) (fill none) (tstamp e1fce976-c25b-4787-a9ef-f5474eb437ee))
+  (gr_text "v1.2" (at 109.4486 104.8258) (layer "B.SilkS") (tstamp 2b00c9f6-8050-4a29-9f19-537b6fbb30ae)
+    (effects (font (size 1 1) (thickness 0.15)) (justify mirror))
+  )
+  (gr_text "v1.2" (at 109.347 104.9274) (layer "F.SilkS") (tstamp 6ef96887-08b3-4a1f-a4f7-80ca1711a055)
+    (effects (font (size 1 1) (thickness 0.15)))
+  )
 
   (segment (start 107.215 129.54) (end 107.6568 129.0982) (width 0.75) (layer "F.Cu") (net 1) (tstamp 002fa32b-9183-4128-9189-b660f90907a3))
   (segment (start 104.6886 129.54) (end 107.215 129.54) (width 0.75) (layer "F.Cu") (net 1) (tstamp 1d8f11ca-b778-49e0-9d9f-75acc642c86d))
