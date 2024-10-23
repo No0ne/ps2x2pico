@@ -1,2 +1,2 @@
-kicad/ linguist-vendored
-freecad/ linguist-vendored
+kicad/* linguist-vendored
+freecad/* linguist-vendored
