@@ -24,9 +24,7 @@
  * THE SOFTWARE.
  *
  */
-
 #include "scancodesets.h"
-//#include "ps2phy.h"
 #include "class/hid/hid.h"
 
 u8 const ext_code_keys_1_2[] = {

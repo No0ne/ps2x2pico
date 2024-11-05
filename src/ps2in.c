@@ -22,7 +22,6 @@
  * THE SOFTWARE.
  *
  */
- 
 #include "ps2out.h"
 #include "ps2in.h"
 #include "ps2in.pio.h"
@@ -66,7 +65,7 @@ void ps2in_task(ps2in* this, ps2out* out) {
     
     if(byte == 0xaa && this->state) {
       this->state = this->sm ? 2 : 10;
-      printf("** ps2in  sm %02x  reset successful!\n", this->sm);
+      //printf("** ps2in  sm %02x  reset successful!\n", this->sm);
     }
     
     if(this->sm == 0) {
@@ -118,13 +117,13 @@ void ps2in_task(ps2in* this, ps2out* out) {
 
 void ps2in_reset(ps2in* this) {
   this->state = 1;
-  printf("** ps2in reset sm %02x\n", this->sm);
+  //printf("** ps2in reset sm %02x\n", this->sm);
   pio_sm_put(this->pio, this->sm, ps2_frame(0xff));
 }
 
 void ps2in_set(ps2in* this, u8 command, u8 byte) {
   if(this->state == 10) {
-    printf("** ps2in  cmd %02x  byte %02x\n", command, byte);
+    //printf("** ps2in  cmd %02x  byte %02x\n", command, byte);
     pio_sm_put(this->pio, this->sm, ps2_frame(command));
     this->byte = byte;
     this->state = 9;

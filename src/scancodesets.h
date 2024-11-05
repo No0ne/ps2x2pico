@@ -25,7 +25,6 @@
  * THE SOFTWARE.
  *
  */
-
 #include "ps2x2pico.h"
 
 #define KB_EXT_PFX_E0 0xe0 // This is the extended code prefix used in sets 1 and 2

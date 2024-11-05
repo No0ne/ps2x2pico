@@ -23,7 +23,6 @@
  * THE SOFTWARE.
  *
  */
-
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -47,4 +46,5 @@ void kb_set_defaults();
 
 void ms_init(u8 gpio_out, u8 gpio_in);
 void ms_usb_receive(u8 const* report);
+void ms_send_movement(u8 buttons, s8 x, s8 y, s8 z);
 bool ms_task();
