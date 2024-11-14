@@ -136,7 +136,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
       break;
     case HID_ITF_PROTOCOL_MOUSE:
       hidprotostr = "MOUSE";
-      tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
+      //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
       hid_info[instance].report_count = hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
       printf("HID has %u reports\n", hid_info[instance].report_count);
       break;
@@ -205,6 +205,7 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
     case HID_ITF_PROTOCOL_MOUSE:
       if(tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) {
         ms_usb_receive(report);
+        tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
       } else {
         ms_report_receive(dev_addr, instance, report, len);
       }
@@ -213,7 +214,7 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
   }
 }
 
-void main() {
+int main() {
   board_init();
   printf("\n%s-%s\n", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING);
   

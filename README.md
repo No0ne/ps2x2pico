@@ -13,6 +13,9 @@ Keyboard only (incl. PC-XT) variant: https://github.com/No0ne/ps2pico
 * https://docs.pikvm.org/pico_hid/
 * https://docs.pikvm.org/pico_hid_bridge/
 
+[ITX-Llama](https://www.vogons.org/viewtopic.php?t=93480) integration:
+https://github.com/eivindbohler/itxllama
+
 # Usage
 * Download `ps2x2pico.uf2` from https://github.com/No0ne/ps2x2pico/releases
 * Copy `ps2x2pico.uf2` to your Pi Pico by pressing BOOTSEL before pluggging in.
@@ -46,24 +49,30 @@ of the diode pair near the USB-C port as seen here:
 
 # Build
 
-Get the Raspberry Pi Pico SDK.
+Get the Raspberry Pi Pico SDK version 1.5.1:
 
 ```sh
 git clone https://github.com/raspberrypi/pico-sdk
+export PICO_SDK_PATH=/path/to/pico-sdk
+cd $PICO_SDK_PATH
+git checkout 1.5.1
 ```
 
-Install needed libraries and tools.
+Install needed libraries and tools:
 
 ```sh
 sudo apt install cmake gcc-arm-none-eabi build-essential pkg-config libusb-1.0-0-dev libusb-1.0-0
 ```
 
-(update to the latest TinyUSB release first)
+Update to the latest TinyUSB release 0.17.0:
 ```
 export PICO_SDK_PATH=/path/to/pico-sdk
 cd $PICO_SDK_PATH/lib/tinyusb
-git checkout 0.16.0
+git checkout 0.17.0
+```
 
+Generate the UF2 file:
+```
 cd /path/to/ps2x2pico
 mkdir build
 cd build
