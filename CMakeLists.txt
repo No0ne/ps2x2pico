@@ -31,13 +31,13 @@ target_compile_options(ps2x2pico PRIVATE -Wall -Wextra)
 
 ### PS/2 output
 add_compile_definitions(LVOUT=13) # Level shifter pull-up voltage
-add_compile_definitions(KBOUT=11) # Keyboard data GPIO, clock is GPIO12
-add_compile_definitions(MSOUT=14) # Mouse data GPIO, clock is GPIO15
+add_compile_definitions(KBOUT=11) # Keyboard data GPIO11, clock is GPIO12
+add_compile_definitions(MSOUT=14) # Mouse data GPIO14, clock is GPIO15
 
 ### PS/2 input
 add_compile_definitions(LVIN=5) # Level shifter pull-up voltage
-add_compile_definitions(KBIN=3) # Keyboard data pin, clock pin is 4
-add_compile_definitions(MSIN=6) # Mouse data pin, clock pin is 7
+add_compile_definitions(KBIN=3) # Keyboard data GPIO3, clock pin is GPIO4
+add_compile_definitions(MSIN=6) # Mouse data GPIO6, clock pin is GPIO7
 
 add_compile_definitions(PICO_PANIC_FUNCTION=reset)
 
