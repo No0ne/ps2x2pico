@@ -45,7 +45,7 @@ If you also want to use a real PS/2 keyboard and mouse together with your USB de
 * GPIO5 LV - 3.3V pull-up
 * GND - GND
 * GPIO6 LV3 - mouse data
-* GPIO7 LV4 - mouse data
+* GPIO7 LV4 - mouse clock
 
 Don't forget to wire HV to 5V and your PS/2 sockets to power the connected PS/2 devices.
 
@@ -54,7 +54,7 @@ PS/2 passthru is especially useful with the PiKVM [Pico HID](https://docs.pikvm.
 * GPIO26 LV1 - keyboard data
 * GPIO27 LV2 - keyboard clock
 * GPIO16 LV3 - mouse data
-* GPIO17 LV4 - mouse data
+* GPIO17 LV4 - mouse clock
 
 Don't forget to wire LV to 3.3V and GND to GND separately as the level shifter does not fit directly on top of the pico. 
 
