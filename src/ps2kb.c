@@ -143,7 +143,9 @@ void kb_send_sc_list(const u8 *list) {
 void kb_set_leds(u8 byte) {
   if(byte > 7) byte = 0;
   tuh_kb_set_leds(led2ps2[byte]);
-  ps2in_set(&kb_in, 0xed, byte);
+  #ifdef KBIN
+    ps2in_set(&kb_in, 0xed, byte);
+  #endif
 }
 
 s64 blink_callback() {
@@ -172,7 +174,9 @@ void kb_set_defaults() {
   delay_ms = 500;
   blinking = true;
   add_alarm_in_ms(100, blink_callback, NULL, false);
-  ps2in_reset(&kb_in);
+  #ifdef KBIN
+    ps2in_reset(&kb_in);
+  #endif
 }
 
 s64 repeat_cb() {
@@ -439,7 +443,9 @@ void kb_receive(u8 byte, u8 prev_byte) {
     case KBH_STATE_SET_TYPEMATIC_PARAMS_F3:
       repeat_us = repeats[byte & 0x1f];
       delay_ms = delays[(byte & 0x60) >> 5];
-      ps2in_set(&kb_in, 0xf3, byte);
+      #ifdef KBIN
+        ps2in_set(&kb_in, 0xf3, byte);
+      #endif
       kbhost_state = KBH_STATE_IDLE;
     break;
 
@@ -616,13 +622,19 @@ void kb_receive(u8 byte, u8 prev_byte) {
 
 bool kb_task() {
   ps2out_task(&kb_out);
-  ps2in_task(&kb_in, &kb_out);
+  #ifdef KBIN
+    ps2in_task(&kb_in, &kb_out);
+  #endif
   return kb_enabled && !kb_out.busy;// TODO: return value can probably be void
 }
 
 void kb_init(u8 gpio_out, u8 gpio_in) {
   ps2out_init(&kb_out, pio0, gpio_out, &kb_receive);
-  ps2in_init(&kb_in, pio1, gpio_in);
+  #ifdef KBIN
+    ps2in_init(&kb_in, pio1, gpio_in);
+  #else
+    (void)gpio_in;
+  #endif
   kb_set_defaults();
   kb_send(KB_MSG_SELFTEST_PASSED_AA);
 }
