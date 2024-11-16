@@ -629,9 +629,9 @@ bool kb_task() {
 }
 
 void kb_init(u8 gpio_out, u8 gpio_in) {
-  ps2out_init(&kb_out, pio0, gpio_out, &kb_receive);
+  ps2out_init(&kb_out, pio1, gpio_out, &kb_receive);
   #ifdef KBIN
-    ps2in_init(&kb_in, pio1, gpio_in);
+    ps2in_init(&kb_in, pio0, gpio_in);
   #else
     (void)gpio_in;
   #endif

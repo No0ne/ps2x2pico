@@ -218,9 +218,9 @@ bool ms_task() {
 }
 
 void ms_init(u8 gpio_out, u8 gpio_in) {
-  ps2out_init(&ms_out, pio0, gpio_out, &ms_receive);
+  ps2out_init(&ms_out, pio1, gpio_out, &ms_receive);
   #ifdef MSIN
-    ps2in_init(&ms_in, pio1, gpio_in);
+    ps2in_init(&ms_in, pio0, gpio_in);
   #else
     (void)gpio_in;
   #endif
