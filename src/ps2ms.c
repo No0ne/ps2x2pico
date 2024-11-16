@@ -26,6 +26,7 @@
 #include "tusb.h"
 #include "ps2out.h"
 #include "ps2in.h"
+
 ps2out ms_out;
 ps2in ms_in;
 

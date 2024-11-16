@@ -26,7 +26,6 @@
 #include "tusb.h"
 #include "ps2out.h"
 #include "ps2in.h"
-#include "hardware/watchdog.h"
 #include "scancodesets.h"
 
 ps2out kb_out;
