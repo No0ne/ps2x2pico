@@ -505,6 +505,10 @@ void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
 void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
+      if(len == 9 && report[0] == 1) {
+        report++;
+        len--;
+      }
       kb_usb_receive(report, len);
       tuh_hid_receive_report(dev_addr, instance);
     break;
