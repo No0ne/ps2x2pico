@@ -85,7 +85,6 @@ u8 kb_addr = 0;
 u8 kb_inst = 0;
 u8 kb_leds = 0;
 ms_items_t ms_items;
-bool ms_inited = false;
 char device_str[50];
 char manufacturer_str[50];
 
@@ -397,11 +396,7 @@ void ms_report_receive(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
     u8 buttons = 0;
     s8 x, y, z;
 
-    if(!ms_inited) {
-      ms_setup(rpt_info);
-      ms_inited = true;
-    }
-
+    ms_setup(rpt_info);
     if(to_bit_value(items->lb, report, len)) buttons |= 0x01;
     if(to_bit_value(items->rb, report, len)) buttons |= 0x02;
     if(to_bit_value(items->mb, report, len)) buttons |= 0x04;
@@ -447,9 +442,6 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
       break;
     case HID_ITF_PROTOCOL_MOUSE:
       hidprotostr = "MOUSE";
-      //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
-      hid_info[instance].report_count = hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
-      printf("HID has %u reports\n", hid_info[instance].report_count);
       break;
     default:
       hidprotostr = "UNKNOWN";
@@ -458,6 +450,9 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
 
   printf("HID(%d,%d,%s) mounted\n", dev_addr, instance, hidprotostr);
   printf(" ID: %04x:%04x\n", vid, pid);
+
+  hid_info[instance].report_count = hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
+  printf("HID has %u reports\n", hid_info[instance].report_count);
 
   u16 temp_buf[128];
 
@@ -497,14 +492,13 @@ void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
   if(dev_addr == kb_addr && instance == kb_inst) {
     kb_addr = 0;
     kb_inst = 0;
-  } else {
-    ms_inited = false;
   }
 }
 
 void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
+      //printf("kbprot %02x len %02x report %02x\n", tuh_hid_get_protocol(dev_addr, instance), len, *report);
       if(len == 9 && report[0] == 1) {
         report++;
         len--;
@@ -514,9 +508,9 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
     break;
 
     case HID_ITF_PROTOCOL_MOUSE:
+      //printf("msprot %02x len %02x report %02x\n", tuh_hid_get_protocol(dev_addr, instance), len, *report);
       if(tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) {
         ms_usb_receive(report);
-        tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_REPORT);
       } else {
         ms_report_receive(dev_addr, instance, report, len);
       }

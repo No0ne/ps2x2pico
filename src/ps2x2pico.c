@@ -43,11 +43,12 @@ int main() {
   gpio_set_dir(LVIN, GPIO_OUT);
   gpio_put(LVOUT, 1);
   gpio_put(LVIN, 1);
-  
+
+  tuh_hid_set_default_protocol(HID_PROTOCOL_REPORT);
   tusb_init();
   kb_init(KBOUT, KBIN);
   ms_init(MSOUT, MSIN);
-  
+
   while(1) {
     tuh_task();
     kb_task();
