@@ -85,8 +85,8 @@ u8 kb_addr = 0;
 u8 kb_inst = 0;
 u8 kb_leds = 0;
 ms_items_t ms_items;
-char device_str[50];
-char manufacturer_str[50];
+//char device_str[50];
+//char manufacturer_str[50];
 
 struct {
   u8 report_count;
@@ -158,7 +158,7 @@ s32 to_signed_value(const hid_report_item_t *item, const u8 *report, u16 len) {
 s8 to_signed_value8(const hid_report_item_t *item, const u8 *report, u16 len) {
   s32 value = 0;
   if(hid_parse_get_item_value(item, report, len, &value)) {
-      value = (value > 127) ? 127 : (value < -127) ? -127 : value;
+    value = (value > 127) ? 127 : (value < -127) ? -127 : value;
   }
   return value;
 }
@@ -370,46 +370,23 @@ void ms_setup(hid_report_info_t *info) {
   hid_parse_find_bit_item_by_page(info, RI_MAIN_INPUT, HID_USAGE_PAGE_BUTTON, 4, &items->fw);
 }
 
-void ms_report_receive(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
-  (void)dev_addr;
-  u8 const rpt_count = hid_info[instance].report_count;
-  hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
-  hid_report_info_t* rpt_info = NULL;
+void ms_report_receive(u8 const* report, u16 len) {
+  ms_items_t *items = &ms_items;
+  u8 buttons = 0;
+  s8 x, y, z;
 
-  if(rpt_count == 1 && rpt_info_arr[0].report_id == 0) {
-    rpt_info = &rpt_info_arr[0];
-  } else {
-    u8 const rpt_id = report[0];
-    for(u8 i=0; i < rpt_count; i++) {
-      if(rpt_id == rpt_info_arr[i].report_id) {
-        rpt_info = &rpt_info_arr[i];
-        break;
-      }
-    }
-    report++;
-    len--;
-  }
+  if(to_bit_value(items->lb, report, len)) buttons |= 0x01;
+  if(to_bit_value(items->rb, report, len)) buttons |= 0x02;
+  if(to_bit_value(items->mb, report, len)) buttons |= 0x04;
+  if(to_bit_value(items->bw, report, len)) buttons |= 0x08;
+  if(to_bit_value(items->fw, report, len)) buttons |= 0x10;
 
-  if(!rpt_info) return;
-  if(rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP && rpt_info->usage == HID_USAGE_DESKTOP_MOUSE) {
-    ms_items_t *items = &ms_items;
-    u8 buttons = 0;
-    s8 x, y, z;
+  x = to_signed_value8(items->x, report, len);
+  y = to_signed_value8(items->y, report, len);
+  z = to_signed_value8(items->wheel, report, len);
+  //to_signed_value8(items->acpan, report, len);
 
-    ms_setup(rpt_info);
-    if(to_bit_value(items->lb, report, len)) buttons |= 0x01;
-    if(to_bit_value(items->rb, report, len)) buttons |= 0x02;
-    if(to_bit_value(items->mb, report, len)) buttons |= 0x04;
-    if(to_bit_value(items->bw, report, len)) buttons |= 0x08;
-    if(to_bit_value(items->fw, report, len)) buttons |= 0x10;
-
-    x = to_signed_value8(items->x, report, len);
-    y = to_signed_value8(items->y, report, len);
-    z = to_signed_value8(items->wheel, report, len);
-    //to_signed_value8(items->acpan, report, len);
-
-    ms_send_movement(buttons, x, y, z);
-  }
+  ms_send_movement(buttons, x, y, z);
 }
 
 void tuh_kb_set_leds(u8 leds) {
@@ -448,13 +425,13 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
       break;
   };
 
-  printf("HID(%d,%d,%s) mounted\n", dev_addr, instance, hidprotostr);
+  printf("\nHID(%d,%d,%s) mounted\n", dev_addr, instance, hidprotostr);
   printf(" ID: %04x:%04x\n", vid, pid);
 
   hid_info[instance].report_count = hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
-  printf("HID has %u reports\n", hid_info[instance].report_count);
+  printf(" HID has %u reports\n", hid_info[instance].report_count);
 
-  u16 temp_buf[128];
+  /*u16 temp_buf[128];
 
   printf(" Manufacturer: ");
   if(XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(dev_addr, 0x0409, temp_buf, sizeof(temp_buf))) {
@@ -466,13 +443,13 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
   if(XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(dev_addr, 0x0409, temp_buf, sizeof(temp_buf))) {
     print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
   }
-  printf("\n\n");
+  printf("\n\n");*/
 
   if(hid_if_proto == HID_ITF_PROTOCOL_KEYBOARD || hid_if_proto == HID_ITF_PROTOCOL_MOUSE) {
     if(!tuh_hid_receive_report(dev_addr, instance)) {
-      printf("ERROR: Could not register for HID(%d,%d,%s)!\n", dev_addr, instance, hidprotostr);
+      printf(" ERROR: Could not register for HID(%d,%d,%s)!\n", dev_addr, instance, hidprotostr);
     } else {
-      printf("HID(%d,%d,%s) registered for reports\n", dev_addr, instance, hidprotostr);
+      printf(" HID(%d,%d,%s) registered for reports\n", dev_addr, instance, hidprotostr);
       if(hid_if_proto == HID_ITF_PROTOCOL_KEYBOARD) {
           // TODO: This needs to be addressed if we want to have multiple connected kbds working correctly!
           // Only relevant for KB LEDS though.
@@ -496,23 +473,50 @@ void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
 }
 
 void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
+  hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
+  hid_report_info_t* rpt_info = NULL;
+
+  if(hid_info[instance].report_count == 1 && rpt_info_arr[0].report_id == 0) {
+    rpt_info = &rpt_info_arr[0];
+  } else {
+    u8 const rpt_id = report[0];
+    for(u8 i = 0; i < hid_info[instance].report_count; i++) {
+      if(rpt_id == rpt_info_arr[i].report_id) {
+        rpt_info = &rpt_info_arr[i];
+        break;
+      }
+    }
+    report++;
+    len--;
+  }
+
+  if(!rpt_info) return;
+
   switch(tuh_hid_interface_protocol(dev_addr, instance)) {
     case HID_ITF_PROTOCOL_KEYBOARD:
-      //printf("kbprot %02x len %02x report %02x\n", tuh_hid_get_protocol(dev_addr, instance), len, *report);
-      if(len == 9 && report[0] == 1) {
-        report++;
-        len--;
+      if(tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) {
+        kb_usb_receive(report, len);
+      } else if(rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP && rpt_info->usage == HID_USAGE_DESKTOP_KEYBOARD) {
+        //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_BOOT);
+        if(len == 8) {
+          kb_usb_receive(report, len);
+        } else {
+          printf("keyboard unknown  len: %02x\n", len);
+        }
+      } else {
+        printf("keyboard unknown  usage_page: %02x  usage: %02x\n", rpt_info->usage_page, rpt_info->usage);
       }
-      kb_usb_receive(report, len);
       tuh_hid_receive_report(dev_addr, instance);
     break;
 
     case HID_ITF_PROTOCOL_MOUSE:
-      //printf("msprot %02x len %02x report %02x\n", tuh_hid_get_protocol(dev_addr, instance), len, *report);
       if(tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) {
         ms_usb_receive(report);
+      } else if(rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP && rpt_info->usage == HID_USAGE_DESKTOP_MOUSE) {
+        ms_setup(rpt_info);
+        ms_report_receive(report, len);
       } else {
-        ms_report_receive(dev_addr, instance, report, len);
+        printf("mouse unknown  usage_page: %02x  usage: %02x\n", rpt_info->usage_page, rpt_info->usage);
       }
       tuh_hid_receive_report(dev_addr, instance);
     break;
