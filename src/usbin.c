@@ -56,6 +56,7 @@ typedef struct {
 typedef struct {
   u16 bit_offset;
   u8 bit_size;
+  u8 bit_count;
   u8 item_type;
   u16 item_flags;
   hid_report_item_attributes_t attributes;
@@ -94,7 +95,7 @@ struct {
 } hid_info[CFG_TUH_HID];
 
 bool hid_parse_find_bit_item_by_page(hid_report_info_t* report_info_arr, u8 type, u16 page, u8 bit, const hid_report_item_t **item) {
-  for(int i = 0; i < report_info_arr->num_items; i++) {
+  for(u8 i = 0; i < report_info_arr->num_items; i++) {
     if(report_info_arr->item[i].item_type == type && report_info_arr->item[i].attributes.usage.page == page) {
       if(item) {
         if(i+bit < report_info_arr->num_items && report_info_arr->item[i+bit].item_type == type && report_info_arr->item[i+bit].attributes.usage.page == page) {
@@ -110,7 +111,7 @@ bool hid_parse_find_bit_item_by_page(hid_report_info_t* report_info_arr, u8 type
 }
 
 bool hid_parse_find_item_by_usage(hid_report_info_t* report_info_arr, u8 type, u16 usage, const hid_report_item_t **item) {
-  for(int i = 0; i < report_info_arr->num_items; i++) {
+  for(u8 i = 0; i < report_info_arr->num_items; i++) {
     if(report_info_arr->item[i].item_type == type && report_info_arr->item[i].attributes.usage.usage == usage) {
       if(item) {
         *item = &report_info_arr->item[i];
@@ -219,10 +220,11 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
           case RI_MAIN_OUTPUT:
           case RI_MAIN_FEATURE:
             u16 offset = (info->num_items == 0) ? 0 : (info->item[info->num_items - 1].bit_offset + info->item[info->num_items - 1].bit_size);
-            for(int i = 0; i < ri_report_count; i++) {
+            for(u8 i = 0; i < ri_report_count; i++) {
               if(info->num_items + i < MAX_REPORT_ITEMS) {
                 info->item[info->num_items + i].bit_offset = offset;
                 info->item[info->num_items + i].bit_size = ri_report_size;
+                info->item[info->num_items + i].bit_count = ri_report_count;
                 info->item[info->num_items + i].item_type = tag;
                 info->item[info->num_items + i].attributes.logical.min = ri_global_logical_min;
                 info->item[info->num_items + i].attributes.logical.max = ri_global_logical_max;
@@ -309,7 +311,35 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
   return report_num;
 }
 
-void convert_utf16le_to_utf8(const u16 *utf16, size_t utf16_len, u8 *utf8, size_t utf8_len) {
+u8 hid_parse_keyboard_modifier(hid_report_info_t* report_info_arr, const u8 *report, u8 len) {
+  u8 modifier = 0;
+  u8 bit = 0;
+  for(u8 i = 0; i < report_info_arr->num_items; i++) {
+    if(report_info_arr->item[i].item_type == RI_MAIN_INPUT &&
+       report_info_arr->item[i].attributes.usage.page == HID_USAGE_PAGE_KEYBOARD &&
+       report_info_arr->item[i].bit_size == 1 &&
+       report_info_arr->item[i].bit_count == 8) {
+      modifier |= to_bit_value(&report_info_arr->item[i], report, len) << bit;
+      bit++;
+      if(bit == 8) break;
+    }
+  }
+  return modifier;
+}
+
+bool hid_parse_keyboard_is_nkro(hid_report_info_t* report_info_arr) {
+  for(u8 i = 0; i < report_info_arr->num_items; i++) {
+    if(report_info_arr->item[i].item_type == RI_MAIN_INPUT &&
+       report_info_arr->item[i].attributes.usage.page == HID_USAGE_PAGE_KEYBOARD &&
+       report_info_arr->item[i].bit_size == 1 &&
+       report_info_arr->item[i].bit_count >= 32) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/*void convert_utf16le_to_utf8(const u16 *utf16, size_t utf16_len, u8 *utf8, size_t utf8_len) {
   // TODO: Check for runover.
   (void)utf8_len;
   // Get the UTF-16 length out of the data itself.
@@ -354,7 +384,7 @@ void print_utf16(u16 *temp_buf, size_t buf_len) {
   convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (u8 *) temp_buf, sizeof(u16) * buf_len);
   ((u8*) temp_buf)[utf8_len] = '\0';
   printf("%s", (char*)temp_buf);
-}
+}*/
 
 void ms_setup(hid_report_info_t *info) {
   ms_items_t *items = &ms_items;
@@ -497,8 +527,39 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
       if(tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) {
         kb_usb_receive(report, len);
       } else if(rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP && rpt_info->usage == HID_USAGE_DESKTOP_KEYBOARD) {
-        //tuh_hid_set_protocol(dev_addr, instance, HID_PROTOCOL_BOOT);
-        if(len == 8) {
+        printf("keyboard  len: %02x  id: %02x items: %02x\n", len, rpt_info->report_id, rpt_info->num_items);
+
+        if(hid_parse_keyboard_is_nkro(rpt_info)) {
+          printf("NKRO: ");
+          u8 current_key = 0;
+          u8 newreport[8] = {0};
+          u8 newindex = 2;
+          for(u8 i = 1; i < len && i < 16; i++) {
+            for(u8 j = 0; j < 8; j++) {
+              if(report[i] >> j & 1 && newindex < 8) {
+                printf(" %02x ", current_key);
+                newreport[newindex] = current_key;
+                newindex++;
+              }
+              current_key++;
+            }
+          }
+          printf("\n");
+          newreport[0] = hid_parse_keyboard_modifier(rpt_info, report, len);
+          newreport[1] = 0;
+          printf("RPT8 %02x %02x %02x %02x %02x %02x %02x %02x\n", newreport[0], newreport[1], newreport[2], newreport[3], newreport[4], newreport[5], newreport[6], newreport[7]);
+          kb_usb_receive(newreport, 8);
+        } else if(len == 7) {
+          printf("RPT7 %02x %02x %02x %02x %02x %02x %02x\n", report[0], report[1], report[2], report[3], report[4], report[5], report[6]);
+          u8 newreport[8];
+          newreport[0] = report[0];
+          newreport[1] = 0;
+          for(u8 i = 1; i < 7; i++) {
+            newreport[i + 1] = report[i];
+          }
+          kb_usb_receive(newreport, 8);
+        } else if(len == 8) {
+          printf("RPT8 %02x %02x %02x %02x %02x %02x %02x %02x\n", report[0], report[1], report[2], report[3], report[4], report[5], report[6], report[7]);
           kb_usb_receive(report, len);
         } else {
           printf("keyboard unknown  len: %02x\n", len);
