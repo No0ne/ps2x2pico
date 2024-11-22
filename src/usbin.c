@@ -561,6 +561,10 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
         } else if(len == 8) {
           printf("RPT8 %02x %02x %02x %02x %02x %02x %02x %02x\n", report[0], report[1], report[2], report[3], report[4], report[5], report[6], report[7]);
           kb_usb_receive(report, len);
+        } else if(len == 9) {
+          printf("RPT9 %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", report[0], report[1], report[2], report[3], report[4], report[5], report[6], report[7], report[8]);
+          len--;
+          kb_usb_receive(report, len);
         } else {
           printf("keyboard unknown  len: %02x\n", len);
         }
