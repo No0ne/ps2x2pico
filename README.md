@@ -85,13 +85,13 @@ sudo apt install cmake gcc-arm-none-eabi build-essential pkg-config libusb-1.0-0
 ```
 
 Update to the latest TinyUSB release 0.17.0:
-```
+```sh
 cd $PICO_SDK_PATH/lib/tinyusb
 git checkout 0.17.0
 ```
 
 Generate the UF2 file:
-```
+```sh
 cd /path/to/ps2x2pico
 mkdir build
 cd build
