@@ -23,9 +23,7 @@
  * THE SOFTWARE.
  *
  */
-#include "tusb.h"
-#include "ps2out.h"
-#include "ps2in.h"
+#include "ps2x2pico.h"
 
 ps2out ms_out;
 ps2in ms_in;
@@ -134,13 +132,6 @@ void ms_send_movement(u8 buttons, s8 x, s8 y, s8 z) {
   ms_dx += x;
   ms_dy += y;
   ms_dz += z;
-}
-
-void ms_usb_receive(u8 const* report) {
-  ms_db = report[0];
-  ms_dx += (s8)report[1];
-  ms_dy += (s8)report[2];
-  ms_dz += (s8)report[3];
 }
 
 void ms_receive(u8 byte, u8 prev_byte) {

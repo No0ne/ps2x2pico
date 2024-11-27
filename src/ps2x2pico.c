@@ -23,15 +23,10 @@
  * THE SOFTWARE.
  *
  */
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-
-#include "hardware/watchdog.h"
-#include "hardware/gpio.h"
-#include "bsp/board_api.h"
-#include "tusb.h"
 #include "ps2x2pico.h"
+#include "bsp/board_api.h"
+#include "hardware/gpio.h"
+#include "hardware/watchdog.h"
 
 int main() {
   board_init();

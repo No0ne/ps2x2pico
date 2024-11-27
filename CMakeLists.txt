@@ -11,8 +11,8 @@ set(MS_RATE_HOST_CONTROL ON CACHE BOOL "Allow the host to configure the mouse sa
 # Pull in Raspberry Pi Pico SDK
 include(pico_sdk_import.cmake)
 
-if (NOT PICO_SDK_VERSION_STRING VERSION_EQUAL "1.5.1")
-  message(FATAL_ERROR "Raspberry Pi Pico SDK version 1.5.1 required. Your version is ${PICO_SDK_VERSION_STRING}")
+if (NOT PICO_SDK_VERSION_STRING VERSION_EQUAL "2.1.0")
+  message(FATAL_ERROR "Raspberry Pi Pico SDK version 2.1.0 required. Your version is ${PICO_SDK_VERSION_STRING}")
 endif()
 
 project(ps2x2pico C CXX ASM)
@@ -20,12 +20,12 @@ project(ps2x2pico C CXX ASM)
 # Initialise the Raspberry Pi Pico SDK
 pico_sdk_init()
 
-add_executable(ps2x2pico src/ps2x2pico.c src/usbin.c src/scancodesets.c src/ps2kb.c src/ps2ms.c src/ps2out.c src/ps2in.c)
+add_executable(ps2x2pico src/ps2x2pico.c src/usbin.c src/scancodes.c src/ps2kb.c src/ps2ms.c src/ps2out.c src/ps2in.c)
 
 pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2out.pio)
 pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2in.pio)
 
- # print memory usage, enable all warnings
+# print memory usage, enable all warnings
 target_link_options(ps2x2pico PRIVATE -Xlinker --print-memory-usage)
 target_compile_options(ps2x2pico PRIVATE -Wall -Wextra)
 
@@ -47,7 +47,7 @@ if (MS_RATE_HOST_CONTROL)
 endif()
 
 pico_set_program_name(ps2x2pico "ps2x2pico")
-pico_set_program_version(ps2x2pico "1.3")
+pico_set_program_version(ps2x2pico "pre-2.0")
 
 pico_enable_stdio_uart(ps2x2pico 1)
 pico_enable_stdio_usb(ps2x2pico 0)

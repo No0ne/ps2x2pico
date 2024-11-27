@@ -22,8 +22,7 @@
  * THE SOFTWARE.
  *
  */
-#include "ps2out.h"
-#include "ps2in.h"
+#include "ps2x2pico.h"
 #include "ps2in.pio.h"
 
 s8 ps2in_prog = -1;
