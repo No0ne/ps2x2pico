@@ -69,18 +69,26 @@ of the diode pair near the USB-C port as seen here:
 
 # Build
 
-Get the Raspberry Pi Pico SDK version 2.1.0:
+Install needed libraries and tools:
 
-```sh
-git clone --depth=1 https://github.com/raspberrypi/pico-sdk.git
-export PICO_SDK_PATH=/path/to/pico-sdk
-cd $PICO_SDK_PATH
-git submodule update --init --depth=1
-```
-
-Install needed libraries and tools and picotool: https://github.com/raspberrypi/picotool
 ```sh
 sudo apt install cmake gcc-arm-none-eabi build-essential pkg-config libusb-1.0-0-dev libusb-1.0-0
+```
+
+Get the Raspberry Pi Pico SDK version 1.5.1:
+
+```sh
+git clone https://github.com/raspberrypi/pico-sdk
+export PICO_SDK_PATH=/path/to/pico-sdk
+cd $PICO_SDK_PATH
+git checkout 1.5.1
+git submodule update --init
+```
+
+Update to the latest TinyUSB release 0.17.0:
+```sh
+cd $PICO_SDK_PATH/lib/tinyusb
+git checkout 0.17.0
 ```
 
 Generate the UF2 file:

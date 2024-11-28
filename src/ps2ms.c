@@ -77,53 +77,51 @@ s16 ms_remain_xyz(s16 xyz) {
   return 0;
 }
 
-void ms_send_packet(u8 buttons, s16 x, s16 y, s8 z) {
-  if(!ms_streaming) return;
-  
-  if(!buttons && !x && !y && !z) {
-    if(!ms_ismoving) return;
-    ms_ismoving = false;
-  } else {
-    ms_ismoving = true;
-  }
-  
-  u8 byte1 = 0x08 | (buttons & 0x07);
-  u8 byte2 = ms_clamp_xyz(x);
-  u8 byte3 = 0x100 - ms_clamp_xyz(y);
-  s8 byte4 = 0x100 - z;
-  
-  if(x < 0) byte1 |= 0x10;
-  if(y > 0) byte1 |= 0x20;
-  if(byte2 == 0xaa) byte2 = 0xab;
-  if(byte3 == 0xaa) byte3 = 0xab;
-  
-  ms_send(byte1);
-  ms_send(byte2);
-  ms_send(byte3);
-  
-  if(ms_type == 3 || ms_type == 4) {
-    if(byte4 < -8) byte4 = -8;
-    if(byte4 > 7) byte4 = 7;
-    
-    if(ms_type == 4) {
-      byte4 &= 0x0f;
-      byte4 |= (buttons << 1) & 0x30;
-    }
-    
-    ms_send(byte4);
-  }
-}
-
 s64 ms_send_callback() {
   if(!ms_streaming) return 0;
-  
+
   if(!ms_out.busy) {
-    ms_send_packet(ms_db, ms_dx, ms_dy, ms_dz);
+    if(!ms_db && !ms_dx && !ms_dy && !ms_dz) {
+      if(!ms_ismoving) {
+        return 1000000 / ms_rate;
+      }
+
+      ms_ismoving = false;
+    } else {
+      ms_ismoving = true;
+    }
+
+    u8 byte1 = 0x08 | (ms_db & 0x07);
+    u8 byte2 = ms_clamp_xyz(ms_dx);
+    u8 byte3 = 0x100 - ms_clamp_xyz(ms_dy);
+    s8 byte4 = 0x100 - ms_dz;
+
+    if(ms_dx < 0) byte1 |= 0x10;
+    if(ms_dy > 0) byte1 |= 0x20;
+    if(byte2 == 0xaa) byte2 = 0xab;
+    if(byte3 == 0xaa) byte3 = 0xab;
+
+    ms_send(byte1);
+    ms_send(byte2);
+    ms_send(byte3);
+
+    if(ms_type == 3 || ms_type == 4) {
+      if(byte4 < -8) byte4 = -8;
+      if(byte4 > 7) byte4 = 7;
+
+      if(ms_type == 4) {
+        byte4 &= 0x0f;
+        byte4 |= (ms_db << 1) & 0x30;
+      }
+
+      ms_send(byte4);
+    }
+
     ms_dx = ms_remain_xyz(ms_dx);
     ms_dy = ms_remain_xyz(ms_dy);
     ms_dz = 0;
   }
-  
+
   return 1000000 / ms_rate;
 }
 
@@ -135,7 +133,7 @@ void ms_send_movement(u8 buttons, s8 x, s8 y, s8 z) {
 }
 
 void ms_receive(u8 byte, u8 prev_byte) {
-  if(!ms_streaming) printf("host > ms %02x\n", byte);
+  printf("host > ms %02x\n", byte);
   switch (prev_byte) {
     case 0xf3: // Set Sample Rate
       #ifdef MS_RATE_HOST_CONTROL
@@ -143,16 +141,16 @@ void ms_receive(u8 byte, u8 prev_byte) {
       #endif
 
       ms_magic_seq = ((ms_magic_seq << 8) | byte) & 0xffffff;
-      
+
       if(ms_type == 0 && ms_magic_seq == 0xc86450) {
         ms_type = 3;
       } else if(ms_type == 3 && ms_magic_seq == 0xc8c850) {
         ms_type = 4;
       }
-      
+
       ms_reset();
     break;
-    
+
     default:
       switch(byte) {
         case 0xff: // Reset
@@ -166,19 +164,19 @@ void ms_receive(u8 byte, u8 prev_byte) {
           ms_streaming = false;
           ms_reset();
         break;
-        
+
         case 0xf4: // Enable Data Reporting
           ms_streaming = true;
           ms_reset();
           add_alarm_in_ms(100, ms_send_callback, NULL, false);
         break;
-        
+
         case 0xf2: // Get Device ID
           ms_send(0xfa);
           ms_send(ms_type);
           ms_reset();
         return;
-        
+
         case 0xeb: // Read Data
           ms_ismoving = true;
         break;

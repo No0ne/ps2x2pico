@@ -624,11 +624,7 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
           report++;
           kb_report_receive(modifiers, report, 6);
 
-        } else if(len == 8) {
-          report++; report++;
-          kb_report_receive(modifiers, report, 6);
-
-        } else if(len == 9) {
+        } else if(len == 8 || len == 9) {
           report++; report++;
           kb_report_receive(modifiers, report, 6);
 
