@@ -27,22 +27,34 @@
 #include "bsp/board_api.h"
 #include "hardware/gpio.h"
 #include "hardware/watchdog.h"
+#include "pio_usb.h"
+#include "hardware/clocks.h"
+#include "pico/stdlib.h"
 
 int main() {
+  set_sys_clock_khz(120000, true);
   board_init();
   printf("\n%s-%s\n", PICO_PROGRAM_NAME, PICO_PROGRAM_VERSION_STRING);
   
-  gpio_init(LVOUT);
-  gpio_init(LVIN);
-  gpio_set_dir(LVOUT, GPIO_OUT);
-  gpio_set_dir(LVIN, GPIO_OUT);
-  gpio_put(LVOUT, 1);
-  gpio_put(LVIN, 1);
+  //gpio_init(LVOUT);
+  //gpio_init(LVIN);
+  //gpio_set_dir(LVOUT, GPIO_OUT);
+  //gpio_set_dir(LVIN, GPIO_OUT);
+  //gpio_put(LVOUT, 1);
+  //gpio_put(LVIN, 1);
+
+  pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
+  pio_cfg.pin_dp = 2;
+  tuh_configure(0, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+
+
 
   tuh_hid_set_default_protocol(HID_PROTOCOL_REPORT);
   tusb_init();
-  kb_init(KBOUT, KBIN);
-  ms_init(MSOUT, MSIN);
+  kb_init(KBOUT, 0); //KBIN);
+  ms_init(MSOUT, 0); //MSIN);
+
+  pio_usb_host_add_port(4, PIO_USB_PINOUT_DPDM);
 
   while(1) {
     tuh_task();

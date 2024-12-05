@@ -29,15 +29,21 @@ pico_generate_pio_header(ps2x2pico ${CMAKE_CURRENT_LIST_DIR}/src/ps2in.pio)
 target_link_options(ps2x2pico PRIVATE -Xlinker --print-memory-usage)
 target_compile_options(ps2x2pico PRIVATE -Wall -Wextra)
 
+target_sources(ps2x2pico PRIVATE
+ # can use 'tinyusb_pico_pio_usb' library later when pico-sdk is updated
+ ${PICO_TINYUSB_PATH}/src/portable/raspberrypi/pio_usb/hcd_pio_usb.c
+ )
+target_compile_definitions(ps2x2pico PRIVATE PIO_USB_USE_TINYUSB)
+
 ### PS/2 output
-add_compile_definitions(LVOUT=13) # Level shifter pull-up voltage
-add_compile_definitions(KBOUT=11) # Keyboard data GPIO11, clock is GPIO12
-add_compile_definitions(MSOUT=14) # Mouse data GPIO14, clock is GPIO15
+add_compile_definitions(LVOUT=11) # Level shifter pull-up voltage
+add_compile_definitions(KBOUT=9) # Keyboard data GPIO11, clock is GPIO12
+add_compile_definitions(MSOUT=12) # Mouse data GPIO14, clock is GPIO15
 
 ### PS/2 input
-add_compile_definitions(LVIN=5) # Level shifter pull-up voltage
-add_compile_definitions(KBIN=3) # Keyboard data GPIO3, clock pin is GPIO4
-add_compile_definitions(MSIN=6) # Mouse data GPIO6, clock pin is GPIO7
+#add_compile_definitions(LVIN=6) # Level shifter pull-up voltage
+#add_compile_definitions(KBIN=7) # Keyboard data GPIO3, clock pin is GPIO4
+#add_compile_definitions(MSIN=9) # Mouse data GPIO6, clock pin is GPIO7
 
 add_compile_definitions(PICO_PANIC_FUNCTION=reset)
 
@@ -52,7 +58,8 @@ pico_set_program_version(ps2x2pico "pre-2.0")
 pico_enable_stdio_uart(ps2x2pico 1)
 pico_enable_stdio_usb(ps2x2pico 0)
 
+add_subdirectory("./Pico-PIO-USB-0.6.1" pico_pio_usb)
 target_include_directories(ps2x2pico PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
-target_link_libraries(ps2x2pico pico_stdlib hardware_pio tinyusb_host tinyusb_board)
+target_link_libraries(ps2x2pico pico_stdlib hardware_pio tinyusb_host tinyusb_board pico_pio_usb)
 
 pico_add_extra_outputs(ps2x2pico)
