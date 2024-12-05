@@ -58,7 +58,7 @@ pico_set_program_version(ps2x2pico "pre-2.0")
 pico_enable_stdio_uart(ps2x2pico 1)
 pico_enable_stdio_usb(ps2x2pico 0)
 
-add_subdirectory("./Pico-PIO-USB-0.6.1" pico_pio_usb)
+add_subdirectory("./Pico-PIO-USB" pico_pio_usb)
 target_include_directories(ps2x2pico PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
 target_link_libraries(ps2x2pico pico_stdlib hardware_pio tinyusb_host tinyusb_board pico_pio_usb)
 

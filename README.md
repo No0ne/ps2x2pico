@@ -94,6 +94,7 @@ git checkout 0.17.0
 Generate the UF2 file:
 ```sh
 cd /path/to/ps2x2pico
+git submodule update --init
 mkdir build
 cd build
 cmake ..
