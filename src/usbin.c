@@ -72,8 +72,7 @@ typedef struct {
 typedef struct {
   const hid_report_item_t *x;
   const hid_report_item_t *y;
-  const hid_report_item_t *wheel;
-  const hid_report_item_t *acpan;
+  const hid_report_item_t *z;
   const hid_report_item_t *lb;
   const hid_report_item_t *mb;
   const hid_report_item_t *rb;
@@ -155,7 +154,7 @@ s32 to_signed_value(const hid_report_item_t *item, const u8 *report, u16 len) {
     value -= midval;
     value <<= (16 - item->bit_size);
   }
-  if(value >  32767) value =  32767;
+  if(value > 32767) value = 32767;
   if(value < -32767) value = -32767;
   return value;
 }
@@ -184,7 +183,7 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
     };
   } header;
 
-  tu_memclr(report_info_arr, arr_count*sizeof(tuh_hid_report_info_t));
+  tu_memclr(report_info_arr, arr_count * sizeof(tuh_hid_report_info_t));
 
   u8 report_num = 0;
   hid_report_info_t* info = report_info_arr;
@@ -395,7 +394,7 @@ void ms_setup(hid_report_info_t *info) {
   memset(items, 0, sizeof(ms_items_t));
   hid_parse_find_item_by_usage(info, RI_MAIN_INPUT, HID_USAGE_DESKTOP_X, &items->x);
   hid_parse_find_item_by_usage(info, RI_MAIN_INPUT, HID_USAGE_DESKTOP_Y, &items->y);
-  hid_parse_find_item_by_usage(info, RI_MAIN_INPUT, HID_USAGE_DESKTOP_WHEEL, &items->wheel);
+  hid_parse_find_item_by_usage(info, RI_MAIN_INPUT, HID_USAGE_DESKTOP_WHEEL, &items->z);
   hid_parse_find_bit_item_by_page(info, RI_MAIN_INPUT, HID_USAGE_PAGE_BUTTON, 0, &items->lb);
   hid_parse_find_bit_item_by_page(info, RI_MAIN_INPUT, HID_USAGE_PAGE_BUTTON, 1, &items->rb);
   hid_parse_find_bit_item_by_page(info, RI_MAIN_INPUT, HID_USAGE_PAGE_BUTTON, 2, &items->mb);
@@ -416,7 +415,7 @@ void ms_report_receive(u8 const* report, u16 len) {
 
   x = to_signed_value8(items->x, report, len);
   y = to_signed_value8(items->y, report, len);
-  z = to_signed_value8(items->wheel, report, len);
+  z = to_signed_value8(items->z, report, len);
 
   ms_send_movement(buttons, x, y, z);
 }
