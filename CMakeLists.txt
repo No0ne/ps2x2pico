@@ -36,9 +36,9 @@ target_sources(ps2x2pico PRIVATE
 target_compile_definitions(ps2x2pico PRIVATE PIO_USB_USE_TINYUSB)
 
 ### PS/2 output
-add_compile_definitions(LVOUT=11) # Level shifter pull-up voltage
-add_compile_definitions(KBOUT=9) # Keyboard data GPIO11, clock is GPIO12
-add_compile_definitions(MSOUT=12) # Mouse data GPIO14, clock is GPIO15
+add_compile_definitions(LVOUT=13) # Level shifter pull-up voltage
+add_compile_definitions(KBOUT=11) # Keyboard data GPIO11, clock is GPIO12
+add_compile_definitions(MSOUT=14) # Mouse data GPIO14, clock is GPIO15
 
 ### PS/2 input
 #add_compile_definitions(LVIN=6) # Level shifter pull-up voltage

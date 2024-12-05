@@ -43,18 +43,18 @@ int main() {
   //gpio_put(LVOUT, 1);
   //gpio_put(LVIN, 1);
 
+  tuh_hid_set_default_protocol(HID_PROTOCOL_REPORT);
+  tuh_init(0);
+
   pio_usb_configuration_t pio_cfg = PIO_USB_DEFAULT_CONFIG;
   pio_cfg.pin_dp = 2;
-  tuh_configure(0, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
-
-
-
-  tuh_hid_set_default_protocol(HID_PROTOCOL_REPORT);
-  tusb_init();
-  kb_init(KBOUT, 0); //KBIN);
-  ms_init(MSOUT, 0); //MSIN);
+  tuh_configure(1, TUH_CFGID_RPI_PIO_USB_CONFIGURATION, &pio_cfg);
+  tuh_init(1);
 
   pio_usb_host_add_port(4, PIO_USB_PINOUT_DPDM);
+
+  kb_init(KBOUT, 0); //KBIN);
+  ms_init(MSOUT, 0); //MSIN);
 
   while(1) {
     tuh_task();
