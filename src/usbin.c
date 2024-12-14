@@ -216,13 +216,14 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
       default: data = 0; sdata = 0;
     }
 
+    u16 offset;
     switch(type) {
       case RI_TYPE_MAIN:
         switch(tag) {
           case RI_MAIN_INPUT:
           case RI_MAIN_OUTPUT:
           case RI_MAIN_FEATURE:
-            u16 offset = (info->num_items == 0) ? 0 : (info->item[info->num_items - 1].bit_offset + info->item[info->num_items - 1].bit_size);
+            offset = (info->num_items == 0) ? 0 : (info->item[info->num_items - 1].bit_offset + info->item[info->num_items - 1].bit_size);
             for(u8 i = 0; i < ri_report_count; i++) {
               if(info->num_items + i < MAX_REPORT_ITEMS) {
                 info->item[info->num_items + i].bit_offset = offset;
