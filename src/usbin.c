@@ -592,14 +592,14 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
     }
 
   } else {
+    u8 modifiers = report[0];
 
     if(tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) {
-      u8 modifiers = report[0];
       report++; report++;
       kb_report_receive(modifiers, report, 6);
 
     } else if(rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP && rpt_info->usage == HID_USAGE_DESKTOP_KEYBOARD) {
-      u8 modifiers = hid_parse_keyboard_modifiers(rpt_info, report, len);
+      //u8 modifiers = hid_parse_keyboard_modifiers(rpt_info, report, len);
 
       if(hid_parse_keyboard_is_nkro(rpt_info)) {
         u8 current_key = 0;
