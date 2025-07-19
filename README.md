@@ -6,7 +6,7 @@ USB keyboard/mouse to PS/2 interface converter using a Raspberry Pi Pico
 |-|-|-|-|
 
 Keyboard only (incl. PC-XT) variant: https://github.com/No0ne/ps2pico  
-There is also an alternative ps2pico firmware for the PC-XT and ps2x2pico hardware: [ps2pico-XT-alt.uf2](https://github.com/No0ne/ps2pico/releases/tag/2.1)
+There is also an alternative ps2pico firmware for the PC-XT and ps2x2pico hardware: [ps2pico-XT-alt.uf2](https://github.com/No0ne/ps2pico/releases/tag/2.2)
 
 Additional excellent documentation by Ray: https://minuszerodegrees.net/keyboard/ps2x2pico.htm
 
