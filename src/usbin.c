@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2024 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2025 No0ne (https://github.com/No0ne)
  *           (c) 2024 Bernd Strobel
  *           (c) 2024 pdaxrom (https://github.com/pdaxrom)
  *
@@ -24,78 +24,21 @@
  * THE SOFTWARE.
  *
  */
+
 #include "ps2x2pico.h"
+#include "tusb.h"
 #include "bsp/board_api.h"
-
-#define MAX_REPORT 4
-#define MAX_REPORT_ITEMS 32
-
-typedef struct {
-  u16 page;
-  u16 usage;
-} hid_usage_t;
-
-typedef struct {
-  u32 type;
-  u8 exponent;
-} hid_unit_t;
-
-typedef struct {
-  s32 min;
-  s32 max;
-} hid_minmax_t;
-
-typedef struct {
-  hid_usage_t usage;
-  hid_unit_t unit;
-  hid_minmax_t logical;
-  hid_minmax_t physical;
-} hid_report_item_attributes_t;
-
-typedef struct {
-  u16 bit_offset;
-  u8 bit_size;
-  u8 bit_count;
-  u8 item_type;
-  u16 item_flags;
-  hid_report_item_attributes_t attributes;
-} hid_report_item_t;
-
-typedef struct {
-  u8 report_id;
-  u8 usage;
-  u16 usage_page;
-  u8 num_items;
-  hid_report_item_t	item[MAX_REPORT_ITEMS];
-} hid_report_info_t;
-
-typedef struct {
-  const hid_report_item_t *x;
-  const hid_report_item_t *y;
-  const hid_report_item_t *z;
-  const hid_report_item_t *lb;
-  const hid_report_item_t *mb;
-  const hid_report_item_t *rb;
-  const hid_report_item_t *bw;
-  const hid_report_item_t *fw;
-} ms_items_t;
-
-u8 kb_leds = 0;
-u8 kb_modifiers = 0;
-u8 kb_keys[120] = {0};
-ms_items_t ms_items;
-//char device_str[50];
-//char manufacturer_str[50];
-
-struct {
-  u8 dev_addr;
-  u8 instance;
-} keyboards[8];
 
 struct {
   u8 report_count;
   hid_report_info_t report_info[MAX_REPORT];
+  u8 dev_addr;
+  u8 modifiers;
+  u8 boot[MAX_BOOT];
+  u8 nkro[MAX_NKRO];
 } hid_info[CFG_TUH_HID];
+
+ms_items_t ms_items;
 
 bool hid_parse_find_bit_item_by_page(hid_report_info_t* report_info_arr, u8 type, u16 page, u8 bit, const hid_report_item_t **item) {
   for(u8 i = 0; i < report_info_arr->num_items; i++) {
@@ -299,7 +242,7 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
           if(ri_collection_depth == 0) {
             info->usage = data;
           } else {
-            if(ri_report_usage_count < MAX_REPORT_ITEMS) {
+            if(ri_report_usage_count < MAX_REPORT_ITEMS && data != HID_USAGE_DESKTOP_POINTER) {
               info->item[info->num_items + ri_report_usage_count].attributes.usage.usage = data;
               ri_report_usage_count++;
             }
@@ -314,81 +257,6 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
 
   return report_num;
 }
-
-u8 hid_parse_keyboard_modifiers(hid_report_info_t* report_info_arr, const u8 *report, u8 len) {
-  u8 modifiers = 0;
-  u8 bit = 0;
-  for(u8 i = 0; i < report_info_arr->num_items; i++) {
-    if(report_info_arr->item[i].item_type == RI_MAIN_INPUT &&
-       report_info_arr->item[i].attributes.usage.page == HID_USAGE_PAGE_KEYBOARD &&
-       report_info_arr->item[i].bit_size == 1 &&
-       report_info_arr->item[i].bit_count == 8) {
-      modifiers |= to_bit_value(&report_info_arr->item[i], report, len) << bit;
-      bit++;
-      if(bit == 8) break;
-    }
-  }
-  return modifiers;
-}
-
-bool hid_parse_keyboard_is_nkro(hid_report_info_t* report_info_arr) {
-  for(u8 i = 0; i < report_info_arr->num_items; i++) {
-    if(report_info_arr->item[i].item_type == RI_MAIN_INPUT &&
-       report_info_arr->item[i].attributes.usage.page == HID_USAGE_PAGE_KEYBOARD &&
-       report_info_arr->item[i].bit_size == 1 &&
-       report_info_arr->item[i].bit_count >= 32) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/*void convert_utf16le_to_utf8(const u16 *utf16, size_t utf16_len, u8 *utf8, size_t utf8_len) {
-  // TODO: Check for runover.
-  (void)utf8_len;
-  // Get the UTF-16 length out of the data itself.
-  for(size_t i = 0; i < utf16_len; i++) {
-    u16 chr = utf16[i];
-    if(chr < 0x80) {
-      *utf8++ = chr & 0xffu;
-    } else if(chr < 0x800) {
-      *utf8++ = (u8)(0xc0 | (chr >> 6 & 0x1f));
-      *utf8++ = (u8)(0x80 | (chr >> 0 & 0x3f));
-    } else {
-      // TODO: Verify surrogate.
-      *utf8++ = (u8)(0xe0 | (chr >> 12 & 0x0f));
-      *utf8++ = (u8)(0x80 | (chr >> 6 & 0x3f));
-      *utf8++ = (u8)(0x80 | (chr >> 0 & 0x3f));
-    }
-    // TODO: Handle UTF-16 code points that take two entries.
-  }
-}
-
-// Count how many bytes a utf-16-le encoded string will take in utf-8.
-int count_utf8_bytes(const u16 *buf, size_t len) {
-  size_t total_bytes = 0;
-  for(size_t i = 0; i < len; i++) {
-    u16 chr = buf[i];
-    if(chr < 0x80) {
-      total_bytes += 1;
-    } else if (chr < 0x800) {
-      total_bytes += 2;
-    } else {
-      total_bytes += 3;
-    }
-    // TODO: Handle UTF-16 code points that take two entries.
-  }
-  return (int)total_bytes;
-}
-
-void print_utf16(u16 *temp_buf, size_t buf_len) {
-  if((temp_buf[0] & 0xff) == 0) return;
-  size_t utf16_len = ((temp_buf[0] & 0xff) - 2) / sizeof(u16);
-  size_t utf8_len = (size_t) count_utf8_bytes(temp_buf + 1, utf16_len);
-  convert_utf16le_to_utf8(temp_buf + 1, utf16_len, (u8 *) temp_buf, sizeof(u16) * buf_len);
-  ((u8*) temp_buf)[utf8_len] = '\0';
-  printf("%s", (char*)temp_buf);
-}*/
 
 void ms_setup(hid_report_info_t *info) {
   ms_items_t *items = &ms_items;
@@ -421,77 +289,6 @@ void ms_report_receive(u8 const* report, u16 len) {
   ms_send_movement(buttons, x, y, z);
 }
 
-void kb_report_receive(u8 modifiers, u8 const* report, u16 len) {
-  if(modifiers != kb_modifiers) {
-    // modifiers have changed
-    u8 rbits = modifiers;
-    u8 pbits = kb_modifiers;
-
-    for(u8 j = 0; j < 8; j++) {
-      if((rbits & 1) != (pbits & 1)) {
-        kb_send_key(HID_KEY_CONTROL_LEFT + j, rbits & 1, modifiers);
-      }
-
-      rbits = rbits >> 1;
-      pbits = pbits >> 1;
-    }
-
-    kb_modifiers = modifiers;
-  }
-
-  // go over activated non-modifier keys in prev_rpt and
-  // check if they are still in the current report
-  for(u8 i = 0; i < len; i++) {
-    if(kb_keys[i]) {
-      bool brk = true;
-
-      for(u8 j = 0; j < len; j++) {
-        if(kb_keys[i] == report[j]) {
-          brk = false;
-          break;
-        }
-      }
-
-      if(brk) {
-        // send break if key not pressed anymore
-        kb_send_key(kb_keys[i], false, modifiers);
-      }
-    }
-  }
-
-  // go over activated non-modifier keys in report and check if they were
-  // already in prev_rpt.
-  for(u8 i = 0; i < len; i++) {
-    if(report[i]) {
-      bool make = true;
-
-      for(u8 j = 0; j < len; j++) {
-        if(report[i] == kb_keys[j]) {
-          make = false;
-          break;
-        }
-      }
-
-      // send make if key was in the current report the first time
-      if(make) {
-        kb_send_key(report[i], true, modifiers);
-      }
-    }
-  }
-
-  memset(kb_keys, 0, sizeof(kb_keys));
-  memcpy(kb_keys, report, len);
-}
-
-void tuh_kb_set_leds(u8 leds) {
-  for(u8 i = 0; i < 8; i++) {
-    if(keyboards[i].dev_addr != 0) {
-      kb_leds = leds;
-      tuh_hid_set_report(keyboards[i].dev_addr, keyboards[i].instance, 0, HID_REPORT_TYPE_OUTPUT, &kb_leds, sizeof(kb_leds));
-    }
-  }
-}
-
 void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_len) {
   // This happens if report descriptor length > CFG_TUH_ENUMERATION_BUFSIZE.
   // Consider increasing #define CFG_TUH_ENUMERATION_BUFSIZE 256 in tusb_config.h
@@ -504,7 +301,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
   u16 vid, pid;
   tuh_vid_pid_get(dev_addr, &vid, &pid);
 
-  char* hidprotostr = "none";
+  char* hidprotostr = "generic";
   if(hid_if_proto == HID_ITF_PROTOCOL_KEYBOARD) hidprotostr = "keyboard";
   if(hid_if_proto == HID_ITF_PROTOCOL_MOUSE) hidprotostr = "mouse";
 
@@ -514,61 +311,39 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
   hid_info[instance].report_count = hid_parse_report_descriptor(hid_info[instance].report_info, MAX_REPORT, desc_report, desc_len);
   printf(" HID has %u reports\n", hid_info[instance].report_count);
 
-  /*u16 temp_buf[128];
-
-  printf(" Manufacturer: ");
-  if(XFER_RESULT_SUCCESS == tuh_descriptor_get_manufacturer_string_sync(dev_addr, 0x0409, temp_buf, sizeof(temp_buf))) {
-    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
-  }
-  printf("\n");
-
-  printf(" Product:      ");
-  if(XFER_RESULT_SUCCESS == tuh_descriptor_get_product_string_sync(dev_addr, 0x0409, temp_buf, sizeof(temp_buf))) {
-    print_utf16(temp_buf, TU_ARRAY_SIZE(temp_buf));
-  }
-  printf("\n\n");*/
-
   if(!tuh_hid_receive_report(dev_addr, instance)) {
     printf(" ERROR: Could not register for HID(%d,%d,%s)!\n", dev_addr, instance, hidprotostr);
   } else {
     printf(" HID(%d,%d,%s) registered for reports\n", dev_addr, instance, hidprotostr);
-    if(hid_if_proto == HID_ITF_PROTOCOL_KEYBOARD) {
-      for(u8 i = 0; i < 8; i++) {
-        if(keyboards[i].dev_addr == 0 && keyboards[i].instance == 0) {
-          keyboards[i].dev_addr = dev_addr;
-          keyboards[i].instance = instance;
-          break;
-        }
-      }
+
+    if(hid_if_proto != HID_ITF_PROTOCOL_MOUSE) {
+      hid_info[instance].dev_addr = dev_addr;
+      hid_info[instance].modifiers = 0;
+      memset(hid_info[instance].boot, 0, MAX_BOOT);
+      memset(hid_info[instance].nkro, 0, MAX_NKRO);
     }
+
     board_led_write(1);
   }
 }
 
 void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
   printf("HID(%d,%d) unmounted\n", dev_addr, instance);
-  board_led_write(0);
-
-  for(u8 i = 0; i < 8; i++) {
-    if(keyboards[i].dev_addr == dev_addr && keyboards[i].instance == instance) {
-      keyboards[i].dev_addr = 0;
-      keyboards[i].instance = 0;
-      break;
-    }
-  }
+  hid_info[instance].dev_addr = 0;
 }
 
 void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
-  hid_report_info_t* rpt_info_arr = hid_info[instance].report_info;
-  hid_report_info_t* rpt_info = NULL;
+  u8 const rpt_count = hid_info[instance].report_count;
+  hid_report_info_t *rpt_infos = hid_info[instance].report_info;
+  hid_report_info_t *rpt_info = NULL;
 
-  if(hid_info[instance].report_count == 1 && rpt_info_arr[0].report_id == 0) {
-    rpt_info = &rpt_info_arr[0];
+  if(rpt_count == 1 && rpt_infos[0].report_id == 0) {
+    rpt_info = &rpt_infos[0];
   } else {
     u8 const rpt_id = report[0];
-    for(u8 i = 0; i < hid_info[instance].report_count; i++) {
-      if(rpt_id == rpt_info_arr[i].report_id) {
-        rpt_info = &rpt_info_arr[i];
+    for(u8 i = 0; i < rpt_count; i++) {
+      if(rpt_id == rpt_infos[i].report_id) {
+        rpt_info = &rpt_infos[i];
         break;
       }
     }
@@ -577,6 +352,8 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
   }
 
   if(!rpt_info) return;
+  board_led_write(1);
+  tuh_hid_receive_report(dev_addr, instance);
 
   if(tuh_hid_interface_protocol(dev_addr, instance) == HID_ITF_PROTOCOL_MOUSE) {
 
@@ -592,49 +369,103 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
     }
 
   } else {
-    u8 modifiers = report[0];
 
-    if(tuh_hid_get_protocol(dev_addr, instance) == HID_PROTOCOL_BOOT) {
-      report++; report++;
-      kb_report_receive(modifiers, report, 6);
+    if(rpt_info->usage_page != HID_USAGE_PAGE_DESKTOP || rpt_info->usage != HID_USAGE_DESKTOP_KEYBOARD) {
+      printf("UNKNOWN key  usage_page: %02x  usage: %02x\n", rpt_info->usage_page, rpt_info->usage);
+      return;
+    }
 
-    } else if(rpt_info->usage_page == HID_USAGE_PAGE_DESKTOP && rpt_info->usage == HID_USAGE_DESKTOP_KEYBOARD) {
-      //u8 modifiers = hid_parse_keyboard_modifiers(rpt_info, report, len);
+    if(report[0] != hid_info[instance].modifiers) {
+      for(u8 i = 0; i < 8; i++) {
+        if((report[0] >> i & 1) != (hid_info[instance].modifiers >> i & 1)) {
+          kb_send_key(i + HID_KEY_CONTROL_LEFT, report[0] >> i & 1);
+        }
+      }
 
-      if(hid_parse_keyboard_is_nkro(rpt_info)) {
-        u8 current_key = 0;
-        u8 newreport[sizeof(kb_keys)] = {0};
-        u8 newindex = 0;
+      hid_info[instance].modifiers = report[0];
+    }
 
-        for(u8 i = 1; i < len && i < 16; i++) {
-          for(u8 j = 0; j < 8; j++) {
-            if(report[i] >> j & 1 && newindex < sizeof(kb_keys)) {
-              newreport[newindex] = current_key;
-              newindex++;
+    report++;
+    len--;
+
+    if(len > 12 && len < 31) {
+      for(u8 i = 0; i < len && i < MAX_NKRO; i++) {
+        for(u8 j = 0; j < 8; j++) {
+          if((report[i] >> j & 1) != (hid_info[instance].nkro[i] >> j & 1)) {
+            kb_send_key(i*8+j, report[i] >> j & 1);
+          }
+        }
+      }
+
+      memcpy(hid_info[instance].nkro, report, len > MAX_NKRO ? MAX_NKRO : len);
+      return;
+    }
+
+    switch(len) {
+      case 8:
+      case 7:
+        report++;
+        // fall through
+      case 6:
+        for(u8 i = 0; i < MAX_BOOT; i++) {
+          if(hid_info[instance].boot[i]) {
+            bool brk = true;
+
+            for(u8 j = 0; j < MAX_BOOT; j++) {
+              if(hid_info[instance].boot[i] == report[j]) {
+                brk = false;
+                break;
+              }
             }
-            current_key++;
+
+            if(brk) kb_send_key(hid_info[instance].boot[i], false);
           }
         }
 
-        kb_report_receive(modifiers, newreport, sizeof(kb_keys));
+        for(u8 i = 0; i < MAX_BOOT; i++) {
+          if(report[i]) {
+            bool make = true;
 
-      } else if(len == 7) {
-        report++;
-        kb_report_receive(modifiers, report, 6);
+            for(u8 j = 0; j < MAX_BOOT; j++) {
+              if(report[i] == hid_info[instance].boot[j]) {
+                make = false;
+                break;
+              }
+            }
 
-      } else if(len == 8 || len == 9) {
-        report++; report++;
-        kb_report_receive(modifiers, report, 6);
+            if(make) kb_send_key(report[i], true);
+          }
+        }
 
-      } else {
-        printf("keyboard unknown  len: %02x\n", len);
-      }
-
-    } else {
-      printf("keyboard unknown  usage_page: %02x  usage: %02x\n", rpt_info->usage_page, rpt_info->usage);
+        memcpy(hid_info[instance].boot, report, MAX_BOOT);
+      return;
     }
 
+    printf("UKNOWN keyboard  len: %d\n", len);
+  }
+}
+
+/*
+s8 kb_set_led = -1;
+u8 kb_inst_loop = 0;
+u8 kb_last_dev = 0;
+
+s64 kb_set_led_callback() {
+  if(kb_set_led == -1) return 50000;
+
+  if(keyboards[kb_inst_loop].dev_addr && kb_last_dev != keyboards[kb_inst_loop].dev_addr) {
+    tuh_hid_set_report(keyboards[kb_inst_loop].dev_addr, kb_inst_loop, 0, HID_REPORT_TYPE_OUTPUT, &kb_set_led, 1);
+    kb_last_dev = keyboards[kb_inst_loop].dev_addr;
   }
 
-  tuh_hid_receive_report(dev_addr, instance);
+  kb_inst_loop++;
+
+  if(kb_inst_loop == CFG_TUH_HID) {
+    kb_inst_loop = 0;
+    kb_set_led = -1;
+    return 100000;
+  }
+
+  return 1000;
 }
+*/
