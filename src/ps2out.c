@@ -1,7 +1,7 @@
 /*
  * The MIT License (MIT)
  *
- * Copyright (c) 2024 No0ne (https://github.com/No0ne)
+ * Copyright (c) 2025 No0ne (https://github.com/No0ne)
  *           (c) 2023 Dustin Hoffman
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -25,10 +25,11 @@
  */
 
 #include "ps2x2pico.h"
-//#include "ps2out.pio.h"
+#include "ps2out.pio.h"
 
-/*s8 ps2out_prog = -1;
-u8 ps2out_locked = 0;
+s8 ps2out_txprg = -1;
+s8 ps2out_rxprg = -1;
+bool ps2out_locked = false;
 
 u32 ps2_frame(u8 byte) {
   bool parity = 1;
@@ -38,91 +39,75 @@ u32 ps2_frame(u8 byte) {
   return ((1 << 10) | (parity << 9) | (byte << 1)) ^ 0x7ff;
 }
 
-void ps2out_init(ps2out* this, PIO pio, u8 data_pin, rx_callback rx) {
-  if(ps2out_prog == -1) {
-    ps2out_prog = pio_add_program(pio, &ps2out_program);
-  }
+void ps2out_send(ps2out* this, u8 len) {
+  this->packet[0] = len;
+  board_led_write(1);
+  queue_try_add(&this->packets, &this->packet);
+}
 
-  queue_init(&this->qbytes, sizeof(u8), 9);
-  queue_init(&this->qpacks, sizeof(u8) * 9, 16);
-
-  this->sm = pio_claim_unused_sm(pio, true);
-  ps2out_program_init(pio, this->sm, ps2out_prog, data_pin);
-
-  this->pio = pio;
-  this->sent = 0;
+void ps2out_init(ps2out* this, bool sm, u8 data_pin, rx_callback rx) {
+  this->sm = sm;
   this->rx = rx;
   this->last_rx = 0;
   this->last_tx = 0;
-  this->busy = 0;
+  this->sent = 0;
+
+  queue_init(&this->packets, 9, 32);
+
+  if(ps2out_txprg == -1) ps2out_txprg = pio_add_program(pio1, &ps2send_program);
+  if(ps2out_rxprg == -1) ps2out_rxprg = pio_add_program(pio1, &ps2receive_program);
+
+  ps2send_program_init(pio1, this->sm ? 0 : 2, ps2out_txprg, data_pin);
+  ps2receive_program_init(pio1, this->sm ? 1 : 3, ps2out_rxprg, data_pin);
 }
 
 void ps2out_task(ps2out* this) {
-  u8 i = 0;
-  u8 byte;
-  u8 pack[9];
+  u8 packet[9];
 
-  if(!queue_is_empty(&this->qbytes)) {
-    while(i < 9 && queue_try_remove(&this->qbytes, &byte)) {
-      i++;
-      pack[i] = byte;
-    }
-
-    pack[0] = i;
-    queue_try_add(&this->qpacks, &pack);
-  }
-
-  if(pio_interrupt_get(this->pio, this->sm)) {
-    this->busy = 1;
-  } else {
-    this->busy &= 2;
-  }
-
-  if(pio_interrupt_get(this->pio, this->sm + 4)) {
+  if(pio_interrupt_get(pio1, this->sm ? 4 : 6)) {
     if(this->sent > 0) this->sent--;
-    pio_interrupt_clear(this->pio, this->sm + 4);
+    pio_interrupt_clear(pio1, this->sm ? 4 : 6);
   }
 
-  if(ps2out_locked && !this->busy) ps2out_locked--;
-
-  if(!queue_is_empty(&this->qpacks) && !this->busy && !ps2out_locked) {
-    if(queue_try_peek(&this->qpacks, &pack)) {
-      if(this->sent == pack[0]) {
+  if(!ps2out_locked && !queue_is_empty(&this->packets) && !pio_interrupt_get(pio1, 0)) {
+    if(queue_try_peek(&this->packets, &packet)) {
+      if(this->sent == packet[0]) {
         this->sent = 0;
-        queue_try_remove(&this->qpacks, &pack);
+        queue_try_remove(&this->packets, &packet);
+        board_led_write(0);
       } else {
         this->sent++;
-        this->last_tx = pack[this->sent];
-        this->busy |= 2;
-        ps2out_locked = 160;
-        pio_sm_put(this->pio, this->sm, ps2_frame(this->last_tx));
+        this->last_tx = packet[this->sent];
+        ps2out_locked = true;
+        pio_sm_put(pio1, this->sm ? 0 : 2, ps2_frame(this->last_tx));
       }
     }
   }
 
-  if(!pio_sm_is_rx_fifo_empty(this->pio, this->sm)) {
-    u32 fifo = pio_sm_get(this->pio, this->sm) >> 23;
+  if(ps2out_locked && pio_interrupt_get(pio1, 0)) ps2out_locked = false;
+
+  if(!pio_sm_is_rx_fifo_empty(pio1, this->sm ? 1 : 3)) {
+    u32 fifo = pio_sm_get(pio1, this->sm ? 1 : 3) >> 23;
 
     bool parity = 1;
-    for(i = 0; i < 8; i++) {
+    for(u8 i = 0; i < 8; i++) {
       parity = parity ^ (fifo >> i & 1);
     }
 
     if(parity != fifo >> 8) {
-      pio_sm_put(this->pio, this->sm, ps2_frame(0xfe));
+      pio_sm_put(pio1, this->sm ? 0 : 2, ps2_frame(0xfe));
       return;
     }
 
     if((fifo & 0xff) == 0xfe) {
-      pio_sm_put(this->pio, this->sm, ps2_frame(this->last_tx));
+      pio_sm_put(pio1, this->sm ? 0 : 2, ps2_frame(this->last_tx));
       return;
     }
 
-    while(queue_try_remove(&this->qbytes, &byte));
-    while(queue_try_remove(&this->qpacks, &pack));
+    while(queue_try_remove(&this->packets, &packet));
     this->sent = 0;
 
     (*this->rx)(fifo, this->last_rx);
     this->last_rx = fifo;
   }
-}*/
+}

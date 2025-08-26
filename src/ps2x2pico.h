@@ -29,6 +29,11 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "tusb.h"
+#include "hardware/pio.h"
+#include "bsp/board_api.h"
+#include "pico/util/queue.h"
+
 typedef int8_t s8;
 typedef int16_t s16;
 typedef int32_t s32;
@@ -44,13 +49,30 @@ typedef uint64_t u64;
 #define MAX_REPORT 8
 #define MAX_REPORT_ITEMS 32
 
-//void kb_init();
-//void kb_task();
+void kb_init(u8 gpio_out, u8 gpio_in);
+bool kb_task();
 void kb_send_key(u8 key, bool state);
+s64 kb_set_led_callback();
 
-//void ms_init(u8 gpio_out, u8 gpio_in);
-//bool ms_task();
+void ms_init(u8 gpio_out, u8 gpio_in);
+bool ms_task();
 void ms_send_movement(u8 buttons, s8 x, s8 y, s8 z);
+
+typedef void (*rx_callback)(u8 byte, u8 prev_byte);
+
+typedef struct {
+  bool sm;
+  queue_t packets;
+  u8 packet[9];
+  rx_callback rx;
+  u8 last_rx;
+  u8 last_tx;
+  u8 sent;
+} ps2out;
+
+void ps2out_init(ps2out* this, bool sm, u8 data_pin, rx_callback rx);
+void ps2out_task(ps2out* this);
+void ps2out_send(ps2out* this, u8 len);
 
 typedef struct {
   u16 page;

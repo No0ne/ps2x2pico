@@ -5,32 +5,32 @@
 ; SPDX-License-Identifier: MIT
 ;
 
-.program ps2write
+.program ps2send
 restart:
   set    pindirs, 0                 // clock high
   irq    clear 0                    // clear busy flag
   pull   ifempty block              // move new byte into OSR
   irq    nowait 0                   // set busy flag
-  set    x, 10                      // number of bits to write out
+  set    x, 10                      // number of bits to send out
 
 loop:
   set    pindirs, 0                 // clock high
-  jmp    pin, write                 // if clock is high, host is still receiving data
+  jmp    pin, send                  // if clock is high, host is still receiving data
   out    null, 32                   // clock was low, clear OSR
-  irq    wait 1                     // host wants to send data, notify of failure to send data
+  irq    wait 4 rel                 // host wants to send data, notify of failure to send data
   jmp    restart                    // and wait for restart
 
-write:
-  out    pindirs, 1                 // write out data
+send:
+  out    pindirs, 1                 // send out data
   set    pindirs, 1                 // set clock low
   nop                               // cycle delay
   jmp    x--, loop                  // iterate
 
 
-.program ps2read
+.program ps2receive
 restart:
   set    pindirs, 0                 // set clock and data high
-  wait   1 gpio, 12  // CLOCK=12    // wait for clock to be pulled high
+  wait   1 pin, 1                   // wait for clock to be pulled high
   wait   0 irq, 0                   // wait for busy flag to get cleared
   jmp    pin, restart               // restart if not receiving
   set    pindirs, 2                 // clock low
@@ -38,7 +38,7 @@ restart:
 
 loop:
   set    pindirs, 0                 // clock high
-  in     pins, 1                    // read a bit into ISR
+  in     pins, 1                    // receive a bit into ISR
   set    pindirs, 2                 // clock low
   jmp    x--, loop                  // iterate
   set    pindirs, 0                 // clock high
@@ -51,30 +51,29 @@ loop:
 
 % c-sdk {
 
-  void ps2write_program_init(PIO pio, uint sm, uint offset, uint dat) {
-    pio_sm_config c = ps2write_program_get_default_config(offset);
+  void ps2send_program_init(PIO pio, uint sm, uint offset, u8 data_pin) {
+    pio_sm_config c = ps2send_program_get_default_config(offset);
 
-    u8 clk = dat + 1;
-    pio_gpio_init(pio, dat);
-    pio_gpio_init(pio, clk);
+    pio_gpio_init(pio, data_pin);
+    pio_gpio_init(pio, data_pin + 1);
 
     sm_config_set_clkdiv(&c, 1250);
-    sm_config_set_jmp_pin(&c, clk);
-    sm_config_set_set_pins(&c, clk, 1);
-    sm_config_set_out_pins(&c, dat, 1);
+    sm_config_set_jmp_pin(&c, data_pin + 1);
+    sm_config_set_set_pins(&c, data_pin + 1, 1);
+    sm_config_set_out_pins(&c, data_pin, 1);
     sm_config_set_out_shift(&c, true, false, 11);
 
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
   }
 
-  void ps2read_program_init(PIO pio, uint sm, uint offset, uint dat) {
-    pio_sm_config c = ps2read_program_get_default_config(offset);
+  void ps2receive_program_init(PIO pio, uint sm, uint offset, u8 data_pin) {
+    pio_sm_config c = ps2receive_program_get_default_config(offset);
 
     sm_config_set_clkdiv(&c, 1875);
-    sm_config_set_jmp_pin(&c, dat);
-    sm_config_set_set_pins(&c, dat, 2);
-    sm_config_set_in_pins(&c, dat);
+    sm_config_set_jmp_pin(&c, data_pin);
+    sm_config_set_set_pins(&c, data_pin, 2);
+    sm_config_set_in_pins(&c, data_pin);
     sm_config_set_in_shift(&c, true, true, 9);
 
     pio_sm_init(pio, sm, offset, &c);

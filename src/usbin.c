@@ -26,8 +26,6 @@
  */
 
 #include "ps2x2pico.h"
-#include "tusb.h"
-#include "bsp/board_api.h"
 
 struct {
   u8 report_count;
@@ -36,9 +34,30 @@ struct {
   u8 modifiers;
   u8 boot[MAX_BOOT];
   u8 nkro[MAX_NKRO];
+  bool leds;
 } hid_info[CFG_TUH_HID];
 
 ms_items_t ms_items;
+
+u8 kb_set_led = 0;
+u8 kb_inst_loop = 0;
+u8 kb_last_dev = 0;
+
+s64 kb_set_led_callback() {
+  if(hid_info[kb_inst_loop].leds && kb_last_dev != hid_info[kb_inst_loop].dev_addr) {
+    tuh_hid_set_report(hid_info[kb_inst_loop].dev_addr, kb_inst_loop, 0, HID_REPORT_TYPE_OUTPUT, &kb_set_led, 1);
+    kb_last_dev = hid_info[kb_inst_loop].dev_addr;
+  }
+
+  kb_inst_loop++;
+
+  if(kb_inst_loop == CFG_TUH_HID) {
+    kb_inst_loop = 0;
+    return 0;
+  }
+
+  return 1000;
+}
 
 bool hid_parse_find_bit_item_by_page(hid_report_info_t* report_info_arr, u8 type, u16 page, u8 bit, const hid_report_item_t **item) {
   for(u8 i = 0; i < report_info_arr->num_items; i++) {
@@ -167,6 +186,9 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
           case RI_MAIN_OUTPUT:
           case RI_MAIN_FEATURE:
             offset = (info->num_items == 0) ? 0 : (info->item[info->num_items - 1].bit_offset + info->item[info->num_items - 1].bit_size);
+            if(ri_report_usage_count > ri_report_count) {
+              info->num_items += ri_report_usage_count - ri_report_count;
+            }
             for(u8 i = 0; i < ri_report_count; i++) {
               if(info->num_items + i < MAX_REPORT_ITEMS) {
                 info->item[info->num_items + i].bit_offset = offset;
@@ -191,6 +213,8 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
           break;
 
           case RI_MAIN_COLLECTION:
+            ri_report_usage_count = 0;
+            ri_report_count = 0;
             ri_collection_depth++;
           break;
 
@@ -242,7 +266,7 @@ u8 hid_parse_report_descriptor(hid_report_info_t* report_info_arr, u8 arr_count,
           if(ri_collection_depth == 0) {
             info->usage = data;
           } else {
-            if(ri_report_usage_count < MAX_REPORT_ITEMS && data != HID_USAGE_DESKTOP_POINTER) {
+            if(ri_report_usage_count < MAX_REPORT_ITEMS) {
               info->item[info->num_items + ri_report_usage_count].attributes.usage.usage = data;
               ri_report_usage_count++;
             }
@@ -316,11 +340,14 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
   } else {
     printf(" HID(%d,%d,%s) registered for reports\n", dev_addr, instance, hidprotostr);
 
-    if(hid_if_proto != HID_ITF_PROTOCOL_MOUSE) {
+    if(hid_if_proto == HID_ITF_PROTOCOL_MOUSE) {
+      hid_info[instance].leds = false;
+    } else {
       hid_info[instance].dev_addr = dev_addr;
       hid_info[instance].modifiers = 0;
       memset(hid_info[instance].boot, 0, MAX_BOOT);
       memset(hid_info[instance].nkro, 0, MAX_NKRO);
+      hid_info[instance].leds = true;
     }
 
     board_led_write(1);
@@ -330,6 +357,7 @@ void tuh_hid_mount_cb(u8 dev_addr, u8 instance, u8 const* desc_report, u16 desc_
 void tuh_hid_umount_cb(u8 dev_addr, u8 instance) {
   printf("HID(%d,%d) unmounted\n", dev_addr, instance);
   hid_info[instance].dev_addr = 0;
+  hid_info[instance].leds = false;
 }
 
 void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 len) {
@@ -444,28 +472,3 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
     printf("UKNOWN keyboard  len: %d\n", len);
   }
 }
-
-/*
-s8 kb_set_led = -1;
-u8 kb_inst_loop = 0;
-u8 kb_last_dev = 0;
-
-s64 kb_set_led_callback() {
-  if(kb_set_led == -1) return 50000;
-
-  if(keyboards[kb_inst_loop].dev_addr && kb_last_dev != keyboards[kb_inst_loop].dev_addr) {
-    tuh_hid_set_report(keyboards[kb_inst_loop].dev_addr, kb_inst_loop, 0, HID_REPORT_TYPE_OUTPUT, &kb_set_led, 1);
-    kb_last_dev = keyboards[kb_inst_loop].dev_addr;
-  }
-
-  kb_inst_loop++;
-
-  if(kb_inst_loop == CFG_TUH_HID) {
-    kb_inst_loop = 0;
-    kb_set_led = -1;
-    return 100000;
-  }
-
-  return 1000;
-}
-*/

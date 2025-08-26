@@ -23,27 +23,19 @@
  *
  */
 
-#include "tusb.h"
-#include "ps2pico.h"
-#include "ps2phy.pio.h"
-#include "bsp/board_api.h"
-#include "pico/util/queue.h"
+#include "ps2x2pico.h"
+
+ps2out kb_out;
+//ps2in kb_in;
 
 bool kb_enabled = true;
-bool phy_locked = false;
-extern s8 kb_set_led;
+extern u8 kb_set_led;
 
 u8 kb_modifiers = 0;
 u8 kb_repeat_key = 0;
 u16 kb_delay_ms = 500;
 u32 kb_repeat_us = 91743;
 alarm_id_t kb_repeater;
-
-u8 phy_last_rx = 0;
-u8 phy_last_tx = 0;
-u8 phy_sent = 0;
-u8 phy_packet[9];
-queue_t phy_packets;
 
 u8 const led2ps2[] = { 0, 4, 1, 5, 2, 6, 3, 7 };
 u8 const mod2ps2[] = { 0x14, 0x12, 0x11, 0x1f, 0x14, 0x59, 0x11, 0x27 };
@@ -65,29 +57,16 @@ u32 const kb_repeats[] = {
 };
 u16 const kb_delays[] = { 250, 500, 750, 1000 };
 
-u32 ps2_frame(u8 byte) {
-  bool parity = 1;
-  for(u8 i = 0; i < 8; i++) {
-    parity = parity ^ (byte >> i & 1);
-  }
-  return ((1 << 10) | (parity << 9) | (byte << 1)) ^ 0x7ff;
-}
-
-void ps2_send(u8 len) {
-  phy_packet[0] = len;
-  board_led_write(1);
-  queue_try_add(&phy_packets, &phy_packet);
-}
-
 void kb_set_leds(u8 byte) {
   if(byte > 7) byte = 0;
   kb_set_led = led2ps2[byte];
+  add_alarm_in_us(1000, kb_set_led_callback, NULL, false);
 }
 
 s64 reset_callback() {
   kb_set_leds(0);
-  phy_packet[1] = 0xaa;
-  ps2_send(1);
+  kb_out.packet[1] = 0xaa;
+  ps2out_send(&kb_out, 1);
   kb_enabled = true;
   return 0;
 }
@@ -110,15 +89,15 @@ s64 kb_repeat_callback() {
   if(kb_repeat_key) {
     if(kb_enabled) {
       u8 len = 0;
-      if(key_is_extended(kb_repeat_key)) phy_packet[++len] = 0xe0;
+      if(key_is_extended(kb_repeat_key)) kb_out.packet[++len] = 0xe0;
 
       if(key_is_modifier(kb_repeat_key)) {
-        phy_packet[++len] = mod2ps2[kb_repeat_key - HID_KEY_CONTROL_LEFT];
+        kb_out.packet[++len] = mod2ps2[kb_repeat_key - HID_KEY_CONTROL_LEFT];
       } else {
-        phy_packet[++len] = hid2ps2[kb_repeat_key];
+        kb_out.packet[++len] = hid2ps2[kb_repeat_key];
       }
 
-      ps2_send(len);
+      ps2out_send(&kb_out, len);
     }
 
     return kb_repeat_us;
@@ -151,15 +130,15 @@ void kb_receive(u8 byte, u8 prev_byte) {
         break;
 
         case 0xee: // Echo
-          phy_packet[1] = 0xee;
-          ps2_send(1);
+          kb_out.packet[1] = 0xee;
+          ps2out_send(&kb_out, 1);
         return;
 
         case 0xf2: // Identify keyboard
-          phy_packet[1] = 0xfa;
-          phy_packet[2] = 0xab;
-          phy_packet[3] = 0x83;
-          ps2_send(3);
+          kb_out.packet[1] = 0xfa;
+          kb_out.packet[2] = 0xab;
+          kb_out.packet[3] = 0x83;
+          ps2out_send(&kb_out, 3);
         return;
 
         case 0xf4: // Enable scanning
@@ -177,8 +156,8 @@ void kb_receive(u8 byte, u8 prev_byte) {
     break;
   }
 
-  phy_packet[1] = 0xfa;
-  ps2_send(1);
+  kb_out.packet[1] = 0xfa;
+  ps2out_send(&kb_out, 1);
 }
 
 void kb_send_key(u8 key, bool state) {
@@ -193,7 +172,7 @@ void kb_send_key(u8 key, bool state) {
   }
 
   u8 len = 0;
-  //printf("HID code = %02x, state = %01x\n", key, state);
+  printf("HID code = %02x, state = %01x\n", key, state);
 
   if(!kb_enabled) {
     printf("kb_enabled = false\n");
@@ -206,29 +185,29 @@ void kb_send_key(u8 key, bool state) {
     if(state) {
       if(kb_modifiers & KEYBOARD_MODIFIER_LEFTCTRL ||
          kb_modifiers & KEYBOARD_MODIFIER_RIGHTCTRL) {
-        phy_packet[++len] = 0xe0;
-        phy_packet[++len] = 0x7e;
-        phy_packet[++len] = 0xe0;
-        phy_packet[++len] = 0xf0;
-        phy_packet[++len] = 0x7e;
+        kb_out.packet[++len] = 0xe0;
+        kb_out.packet[++len] = 0x7e;
+        kb_out.packet[++len] = 0xe0;
+        kb_out.packet[++len] = 0xf0;
+        kb_out.packet[++len] = 0x7e;
       } else {
-        phy_packet[++len] = 0xe1;
-        phy_packet[++len] = 0x14;
-        phy_packet[++len] = 0x77;
-        phy_packet[++len] = 0xe1;
-        phy_packet[++len] = 0xf0;
-        phy_packet[++len] = 0x14;
-        phy_packet[++len] = 0xf0;
-        phy_packet[++len] = 0x77;
+        kb_out.packet[++len] = 0xe1;
+        kb_out.packet[++len] = 0x14;
+        kb_out.packet[++len] = 0x77;
+        kb_out.packet[++len] = 0xe1;
+        kb_out.packet[++len] = 0xf0;
+        kb_out.packet[++len] = 0x14;
+        kb_out.packet[++len] = 0xf0;
+        kb_out.packet[++len] = 0x77;
       }
 
-      ps2_send(len);
+      ps2out_send(&kb_out, len);
     }
 
     return;
   }
 
-  if(key_is_extended(key)) phy_packet[++len] = 0xe0;
+  if(key_is_extended(key)) kb_out.packet[++len] = 0xe0;
 
   if(state) {
     kb_repeat_key = key;
@@ -236,69 +215,33 @@ void kb_send_key(u8 key, bool state) {
     kb_repeater = add_alarm_in_ms(kb_delay_ms, kb_repeat_callback, NULL, false);
   } else {
     if(key == kb_repeat_key) kb_repeat_key = 0;
-    phy_packet[++len] = 0xf0;
+    kb_out.packet[++len] = 0xf0;
   }
 
   if(key >= HID_KEY_CONTROL_LEFT && key <= HID_KEY_GUI_RIGHT) {
-    phy_packet[++len] = mod2ps2[key - HID_KEY_CONTROL_LEFT];
+    kb_out.packet[++len] = mod2ps2[key - HID_KEY_CONTROL_LEFT];
   } else {
-    phy_packet[++len] = hid2ps2[key];
+    kb_out.packet[++len] = hid2ps2[key];
   }
 
-  ps2_send(len);
+  ps2out_send(&kb_out, len);
 }
 
-void kb_task() {
-  if(pio_interrupt_get(pio0, 1)) {
-    if(phy_sent > 0) phy_sent--;
-    pio_interrupt_clear(pio0, 1);
-  }
-
-  if(!phy_locked && !queue_is_empty(&phy_packets) && !pio_interrupt_get(pio0, 0)) {
-    if(queue_try_peek(&phy_packets, &phy_packet)) {
-      if(phy_sent == phy_packet[0]) {
-        phy_sent = 0;
-        queue_try_remove(&phy_packets, &phy_packet);
-        board_led_write(0);
-      } else {
-        phy_sent++;
-        phy_last_tx = phy_packet[phy_sent];
-        phy_locked = true;
-        pio_sm_put(pio0, 0, ps2_frame(phy_last_tx));
-      }
-    }
-  }
-
-  if(phy_locked && pio_interrupt_get(pio0, 0)) phy_locked = false;
-
-  if(!pio_sm_is_rx_fifo_empty(pio0, 1)) {
-    u32 fifo = pio_sm_get(pio0, 1) >> 23;
-
-    bool parity = 1;
-    for(u8 i = 0; i < 8; i++) {
-      parity = parity ^ (fifo >> i & 1);
-    }
-
-    if(parity != fifo >> 8) {
-      pio_sm_put(pio0, 0, ps2_frame(0xfe));
-      return;
-    }
-
-    if((fifo & 0xff) == 0xfe) {
-      pio_sm_put(pio0, 0, ps2_frame(phy_last_tx));
-      return;
-    }
-
-    while(queue_try_remove(&phy_packets, &phy_packet));
-    phy_sent = 0;
-
-    kb_receive(fifo, phy_last_rx);
-    phy_last_rx = fifo;
-  }
+bool kb_task() {
+  ps2out_task(&kb_out);
+  #ifdef KBIN
+    ps2in_task(&kb_in, &kb_out);
+  #endif
+  return kb_enabled; // && !kb_out.busy;// TODO: return value can probably be void
 }
 
-void kb_init() {
-  ps2write_program_init(pio0, 0, pio_add_program(pio0, &ps2write_program));
-  ps2read_program_init(pio0, 1, pio_add_program(pio0, &ps2read_program));
-  queue_init(&phy_packets, 9, 32);
+void kb_init(u8 gpio_out, u8 gpio_in) {
+  ps2out_init(&kb_out, true, gpio_out, &kb_receive);
+  #ifdef KBIN
+    ps2in_init(&kb_in, gpio_in);
+  #else
+    (void)gpio_in;
+  #endif
+  //kb_set_defaults();
+  //kb_send(KB_MSG_SELFTEST_PASSED_AA);
 }

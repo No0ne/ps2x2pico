@@ -36,7 +36,7 @@
 
 #define CFG_TUSB_MCU          OPT_MCU_RP2040
 #define CFG_TUSB_OS           OPT_OS_PICO
-//#define CFG_TUSB_RHPORT0_MODE OPT_MODE_HOST
+#define CFG_TUSB_RHPORT0_MODE OPT_MODE_HOST
 
 #ifndef CFG_TUSB_DEBUG
 #define CFG_TUSB_DEBUG        0
@@ -64,21 +64,10 @@
 // Enable Host stack
 #define CFG_TUH_ENABLED       1
 
-#define CFG_TUH_RPI_PIO_USB   1
+/*#define CFG_TUH_RPI_PIO_USB   1
 #define CFG_TUH_RPI_DUAL_USB  1
-#define BOARD_TUH_RHPORT      0
 #define CFG_TUSB_RHPORT0_MODE (OPT_MODE_HOST | OPT_MODE_FULL_SPEED)
-#define CFG_TUSB_RHPORT1_MODE (OPT_MODE_HOST | OPT_MODE_FULL_SPEED)
-
-#if CFG_TUSB_MCU == OPT_MCU_RP2040
-  // #define CFG_TUH_RPI_PIO_USB   1 // use pio-usb as host controller
-  // #define CFG_TUH_MAX3421       1 // use max3421 as host controller
-
-  // host roothub port is 1 if using either pio-usb or max3421
-  #if (defined(CFG_TUH_RPI_PIO_USB) && CFG_TUH_RPI_PIO_USB) || (defined(CFG_TUH_MAX3421) && CFG_TUH_MAX3421)
-    //#define BOARD_TUH_RHPORT      1
-  #endif
-#endif
+#define CFG_TUSB_RHPORT1_MODE (OPT_MODE_HOST | OPT_MODE_FULL_SPEED)*/
 
 // Default is max speed that hardware controller could support with on-chip PHY
 #define CFG_TUH_MAX_SPEED     BOARD_TUH_MAX_SPEED
