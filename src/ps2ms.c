@@ -52,18 +52,13 @@ void ms_reset() {
   ms_dz = 0;
 }
 
-/*void ms_send(u8 byte) {
-  if(!ms_streaming) printf("ms > host %02x\n", byte);
-  queue_try_add(&ms_out.qbytes, &byte);
-}*/
-
 s64 ms_reset_callback() {
   ms_out.packet[1] = 0xaa;
   ms_out.packet[2] = ms_type;
   ps2out_send(&ms_out, 2);
-  #ifdef MSIN
+  /*#ifdef MSIN
     ps2in_reset(&ms_in);
-  #endif
+  #endif*/
   return 0;
 }
 
@@ -81,51 +76,46 @@ s16 ms_remain_xyz(s16 xyz) {
 
 s64 ms_send_callback() {
   if(!ms_streaming) return 0;
+  if(pio_interrupt_get(pio1, 7)) return 1000000 / ms_rate;
 
-  //if(!ms_out.busy) {
-    if(!ms_db && !ms_dx && !ms_dy && !ms_dz) {
-      if(!ms_ismoving) {
-        return 1000000 / ms_rate;
-      }
+  if(!ms_db && !ms_dx && !ms_dy && !ms_dz) {
+    if(!ms_ismoving) return 1000000 / ms_rate;
+    ms_ismoving = false;
+  } else {
+    ms_ismoving = true;
+  }
 
-      ms_ismoving = false;
-    } else {
-      ms_ismoving = true;
+  u8 byte1 = 0x08 | (ms_db & 0x07);
+  u8 byte2 = ms_clamp_xyz(ms_dx);
+  u8 byte3 = 0x100 - ms_clamp_xyz(ms_dy);
+  s8 byte4 = 0x100 - ms_dz;
+
+  if(ms_dx < 0) byte1 |= 0x10;
+  if(ms_dy > 0) byte1 |= 0x20;
+  if(byte2 == 0xaa) byte2 = 0xab;
+  if(byte3 == 0xaa) byte3 = 0xab;
+
+  u8 len = 0;
+  ms_out.packet[++len] = byte1;
+  ms_out.packet[++len] = byte2;
+  ms_out.packet[++len] = byte3;
+
+  if(ms_type == 3 || ms_type == 4) {
+    if(byte4 < -8) byte4 = -8;
+    if(byte4 > 7) byte4 = 7;
+
+    if(ms_type == 4) {
+      byte4 &= 0x0f;
+      byte4 |= (ms_db << 1) & 0x30;
     }
 
-    u8 byte1 = 0x08 | (ms_db & 0x07);
-    u8 byte2 = ms_clamp_xyz(ms_dx);
-    u8 byte3 = 0x100 - ms_clamp_xyz(ms_dy);
-    s8 byte4 = 0x100 - ms_dz;
+    ms_out.packet[++len] = byte4;
+  }
 
-    if(ms_dx < 0) byte1 |= 0x10;
-    if(ms_dy > 0) byte1 |= 0x20;
-    if(byte2 == 0xaa) byte2 = 0xab;
-    if(byte3 == 0xaa) byte3 = 0xab;
-
-u8 len = 0;
-
-    ms_out.packet[++len] = byte1;
-    ms_out.packet[++len] = byte2;
-    ms_out.packet[++len] = byte3;
-
-    if(ms_type == 3 || ms_type == 4) {
-      if(byte4 < -8) byte4 = -8;
-      if(byte4 > 7) byte4 = 7;
-
-      if(ms_type == 4) {
-        byte4 &= 0x0f;
-        byte4 |= (ms_db << 1) & 0x30;
-      }
-
-      ms_out.packet[++len] = byte4;
-    }
-
-    ms_dx = ms_remain_xyz(ms_dx);
-    ms_dy = ms_remain_xyz(ms_dy);
-    ms_dz = 0;
-    ps2out_send(&ms_out, len);
-  //}
+  ms_dx = ms_remain_xyz(ms_dx);
+  ms_dy = ms_remain_xyz(ms_dy);
+  ms_dz = 0;
+  ps2out_send(&ms_out, len);
 
   return 1000000 / ms_rate;
 }
@@ -138,7 +128,6 @@ void ms_send_movement(u8 buttons, s8 x, s8 y, s8 z) {
 }
 
 void ms_receive(u8 byte, u8 prev_byte) {
-  printf("host > ms %02x\n", byte);
   switch (prev_byte) {
     case 0xf3: // Set Sample Rate
       #ifdef MS_RATE_HOST_CONTROL
@@ -180,7 +169,7 @@ void ms_receive(u8 byte, u8 prev_byte) {
           ms_out.packet[1] = 0xfa;
           ms_out.packet[2] = ms_type;
           ps2out_send(&ms_out, 2);
-          //ms_reset();
+          ms_reset();
         return;
 
         case 0xeb: // Read Data
@@ -208,18 +197,18 @@ void ms_receive(u8 byte, u8 prev_byte) {
 
 bool ms_task() {
   ps2out_task(&ms_out);
-  #ifdef MSIN
+  /*#ifdef MSIN
     ps2in_task(&ms_in, &ms_out);
-  #endif
-  return ms_streaming; // && !ms_out.busy;
+  #endif*/
+  return ms_streaming && !pio_interrupt_get(pio1, 7);
 }
 
 void ms_init(u8 gpio_out, u8 gpio_in) {
   ps2out_init(&ms_out, false, gpio_out, &ms_receive);
-  #ifdef MSIN
+  /*#ifdef MSIN
     ps2in_init(&ms_in, gpio_in);
-  #else
+  #else*/
     (void)gpio_in;
-  #endif
+  //#endif
   ms_reset_callback();
 }

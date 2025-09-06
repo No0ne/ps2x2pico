@@ -53,6 +53,7 @@ s64 kb_set_led_callback() {
 
   if(kb_inst_loop == CFG_TUH_HID) {
     kb_inst_loop = 0;
+    kb_last_dev = 0;
     return 0;
   }
 
@@ -393,7 +394,7 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
       ms_report_receive(report, len);
 
     } else {
-      printf("mouse unknown  usage_page: %02x  usage: %02x\n", rpt_info->usage_page, rpt_info->usage);
+      printf("UKNOWN mouse  usage_page: %02x  usage: %02x\n", rpt_info->usage_page, rpt_info->usage);
     }
 
   } else {
@@ -469,6 +470,6 @@ void tuh_hid_report_received_cb(u8 dev_addr, u8 instance, u8 const* report, u16 
       return;
     }
 
-    printf("UKNOWN keyboard  len: %d\n", len);
+    printf("UNKNOWN keyboard  len: %d\n", len);
   }
 }

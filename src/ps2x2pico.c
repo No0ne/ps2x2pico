@@ -51,17 +51,17 @@ int main() {
   tuh_hid_set_default_protocol(HID_PROTOCOL_REPORT);
   tuh_init(BOARD_TUH_RHPORT);
 
-  #ifdef LVIN
+  /*#ifdef LVIN
     gpio_init(LVIN);
     gpio_set_dir(LVIN, GPIO_OUT);
     gpio_put(LVIN, 1);
 
     kb_init(KBOUT, KBIN);
     ms_init(MSOUT, MSIN);
-  #else
+  #else*/
     kb_init(KBOUT, 0);
     ms_init(MSOUT, 0);
-  #endif
+  //#endif
 
   while(1) {
     tuh_task();

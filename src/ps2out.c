@@ -29,7 +29,7 @@
 
 s8 ps2out_txprg = -1;
 s8 ps2out_rxprg = -1;
-bool ps2out_locked = false;
+u8 ps2out_lock = 0;
 
 u32 ps2_frame(u8 byte) {
   bool parity = 1;
@@ -45,9 +45,10 @@ void ps2out_send(ps2out* this, u8 len) {
   queue_try_add(&this->packets, &this->packet);
 }
 
-void ps2out_init(ps2out* this, bool sm, u8 data_pin, rx_callback rx) {
+void ps2out_init(ps2out* this, bool sm, u8 data_pin, rx_callback rx_function) {
   this->sm = sm;
-  this->rx = rx;
+  this->data_pin = data_pin;
+  this->rx_function = rx_function;
   this->last_rx = 0;
   this->last_tx = 0;
   this->sent = 0;
@@ -64,27 +65,34 @@ void ps2out_init(ps2out* this, bool sm, u8 data_pin, rx_callback rx) {
 void ps2out_task(ps2out* this) {
   u8 packet[9];
 
-  if(pio_interrupt_get(pio1, this->sm ? 4 : 6)) {
-    if(this->sent > 0) this->sent--;
-    pio_interrupt_clear(pio1, this->sm ? 4 : 6);
-  }
+  if(ps2out_lock) {
+    ps2out_lock--;
 
-  if(!ps2out_locked && !queue_is_empty(&this->packets) && !pio_interrupt_get(pio1, 0)) {
-    if(queue_try_peek(&this->packets, &packet)) {
-      if(this->sent == packet[0]) {
-        this->sent = 0;
-        queue_try_remove(&this->packets, &packet);
-        board_led_write(0);
-      } else {
-        this->sent++;
-        this->last_tx = packet[this->sent];
-        ps2out_locked = true;
-        pio_sm_put(pio1, this->sm ? 0 : 2, ps2_frame(this->last_tx));
-      }
+    if(pio_interrupt_get(pio1, 7)) {
+      ps2out_lock = 0;
     }
   }
 
-  if(ps2out_locked && pio_interrupt_get(pio1, 0)) ps2out_locked = false;
+  if(!ps2out_lock && !pio_interrupt_get(pio1, 7) && gpio_get(this->data_pin) && gpio_get(this->data_pin+1) && queue_try_peek(&this->packets, &packet)) {
+    if(this->sent == packet[0]) {
+      queue_try_remove(&this->packets, &packet);
+      this->sent = 0;
+      board_led_write(0);
+    } else {
+      this->sent++;
+      this->last_tx = packet[this->sent];
+      ps2out_lock = 100;
+      //if(this->sm) printf(" %02x ", this->last_tx);
+      //if(!this->sm) printf("ms > host  0x%02x\n", this->last_tx);
+      pio_sm_put(pio1, this->sm ? 0 : 2, ps2_frame(this->last_tx));
+    }
+  }
+
+  if(pio_interrupt_get(pio1, this->sm ? 0 : 2)) {
+    if(this->sent > 0) this->sent--;
+    pio_interrupt_clear(pio1, this->sm ? 0 : 2);
+    pio_interrupt_clear(pio1, 7);
+  }
 
   if(!pio_sm_is_rx_fifo_empty(pio1, this->sm ? 1 : 3)) {
     u32 fifo = pio_sm_get(pio1, this->sm ? 1 : 3) >> 23;
@@ -107,7 +115,9 @@ void ps2out_task(ps2out* this) {
     while(queue_try_remove(&this->packets, &packet));
     this->sent = 0;
 
-    (*this->rx)(fifo, this->last_rx);
+    (*this->rx_function)(fifo, this->last_rx);
     this->last_rx = fifo;
+    //if(this->sm) printf("host > kb  0x%02x\n", this->last_rx);
+    //if(!this->sm) printf("host > ms  0x%02x\n", this->last_rx);
   }
 }

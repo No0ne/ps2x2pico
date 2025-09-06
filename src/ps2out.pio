@@ -7,47 +7,47 @@
 
 .program ps2send
 restart:
-  set    pindirs, 0                 // clock high
-  irq    clear 0                    // clear busy flag
   pull   ifempty block              // move new byte into OSR
-  irq    nowait 0                   // set busy flag
+  wait   0 irq, 7                   // wait for busy flag to get cleared
+  irq    nowait 7                   // set busy flag
   set    x, 10                      // number of bits to send out
 
 loop:
-  set    pindirs, 0                 // clock high
-  jmp    pin, send                  // if clock is high, host is still receiving data
+  set    pindirs, 0                 // set clock high
+  jmp    pin, send                  // if clock is high, host is receiving data
   out    null, 32                   // clock was low, clear OSR
-  irq    wait 4 rel                 // host wants to send data, notify of failure to send data
+  irq    wait 0 rel                 // notify of failure to send data
   jmp    restart                    // and wait for restart
 
 send:
   out    pindirs, 1                 // send out data
-  set    pindirs, 1                 // set clock low
-  nop                               // cycle delay
+  set    pindirs, 1             [1] // set clock low
   jmp    x--, loop                  // iterate
+  set    pindirs, 0                 // set clock high
+  irq    clear 7                    // clear busy flag
 
 
 .program ps2receive
 restart:
-  set    pindirs, 0                 // set clock and data high
   wait   1 pin, 1                   // wait for clock to be pulled high
-  wait   0 irq, 0                   // wait for busy flag to get cleared
-  jmp    pin, restart               // restart if not receiving
-  set    pindirs, 2                 // clock low
+  wait   0 irq, 7                   // wait for busy flag to get cleared
+  jmp    pin, restart               // if data is high, restart if not receiving
+  irq    nowait 7                   // set busy flag
+  set    pindirs, 2                 // data high, clock low
   set    x, 8                       // set loop counter
 
 loop:
-  set    pindirs, 0                 // clock high
+  set    pindirs, 0                 // data high, clock high
   in     pins, 1                    // receive a bit into ISR
-  set    pindirs, 2                 // clock low
-  jmp    x--, loop                  // iterate
-  set    pindirs, 0                 // clock high
-  nop                               // cycle delay
   set    pindirs, 2                 // data high, clock low
-  set    pindirs, 3                 // data low, clock low
-  nop                               // cycle delay
-  set    pindirs, 1                 // data low, clock high
-  nop                               // cycle delay
+  jmp    x--, loop                  // iterate
+  set    pindirs, 0             [1] // data high, clock high
+  set    pindirs, 2                 // data high, clock low
+  set    pindirs, 3             [1] // data low, clock low
+  set    pindirs, 1             [1] // data low, clock high
+  set    pindirs, 0                 // data high, clock high
+  irq    clear 7                    // clear busy flag
+
 
 % c-sdk {
 

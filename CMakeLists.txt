@@ -13,8 +13,8 @@ set(MS_RATE_HOST_CONTROL ON CACHE BOOL "Allow the host to configure the mouse sa
 # Pull in Raspberry Pi Pico SDK
 include(pico_sdk_import.cmake)
 
-if (PICO_SDK_VERSION_STRING VERSION_LESS "2.1.1")
-  message(FATAL_ERROR "Raspberry Pi Pico SDK version 2.1.1 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
+if (PICO_SDK_VERSION_STRING VERSION_LESS "2.2.0")
+  message(FATAL_ERROR "Raspberry Pi Pico SDK version 2.2.0 (or later) required. Your version is ${PICO_SDK_VERSION_STRING}")
 endif()
 
 set(target_name ps2x2pico)

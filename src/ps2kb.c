@@ -126,7 +126,6 @@ void kb_receive(u8 byte, u8 prev_byte) {
           kb_delay_ms = 500;
           kb_set_leds(KEYBOARD_LED_NUMLOCK | KEYBOARD_LED_CAPSLOCK | KEYBOARD_LED_SCROLLLOCK);
           add_alarm_in_ms(500, reset_callback, NULL, false);
-          printf("resetting...\n");
         break;
 
         case 0xee: // Echo
@@ -172,7 +171,7 @@ void kb_send_key(u8 key, bool state) {
   }
 
   u8 len = 0;
-  printf("HID code = %02x, state = %01x\n", key, state);
+  //printf("HID code = %02x, state = %01x\n", key, state);
 
   if(!kb_enabled) {
     printf("kb_enabled = false\n");
@@ -229,19 +228,19 @@ void kb_send_key(u8 key, bool state) {
 
 bool kb_task() {
   ps2out_task(&kb_out);
-  #ifdef KBIN
+  /*#ifdef KBIN
     ps2in_task(&kb_in, &kb_out);
-  #endif
-  return kb_enabled; // && !kb_out.busy;// TODO: return value can probably be void
+  #endif*/
+  return kb_enabled && !pio_interrupt_get(pio1, 7);
 }
 
 void kb_init(u8 gpio_out, u8 gpio_in) {
   ps2out_init(&kb_out, true, gpio_out, &kb_receive);
-  #ifdef KBIN
+  /*#ifdef KBIN
     ps2in_init(&kb_in, gpio_in);
-  #else
+  #else*/
     (void)gpio_in;
-  #endif
+  //#endif
   //kb_set_defaults();
   //kb_send(KB_MSG_SELFTEST_PASSED_AA);
 }
