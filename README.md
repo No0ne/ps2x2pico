@@ -102,6 +102,16 @@ cmake ..
 make
 ```
 
+# Case
+
+There are two case versions for this project, one for the hat variant in `freecad/` and one for the level shifter version in `openscad/`.
+
+## Level shifter version
+
+The case is snap fit and doesn't require any fasteners. You can print it as is using `ps2x2pico_case.stl` in your slicer but various customisation options are included in the underlying OpenSCAD model `ps2x2pico_case.scad` should you need them. This allows you to adjust tolerances or clearances of the height of the case and the various holes and support posts.
+
+Note that when opening the case in OpenSCAD the [BOSL2](https://github.com/BelfrySCAD/BOSL2) library is required.
+
 # Resources
 * https://github.com/No0ne/ps2pico
 * https://wiki.osdev.org/PS/2_Keyboard
