@@ -172,7 +172,7 @@ void kb_set_defaults() {
   #endif
 }
 
-s64 repeat_cb() {
+s64 repeat_cb(alarm_id_t, void *) {
   if(key2repeat) {
     switch(scancodeset) {
       case SCAN_CODE_SET_1:

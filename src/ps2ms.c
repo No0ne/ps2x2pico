@@ -56,7 +56,7 @@ void ms_send(u8 byte) {
   queue_try_add(&ms_out.qbytes, &byte);
 }
 
-s64 ms_reset_callback() {
+s64 ms_reset_callback(alarm_id_t, void *) {
   ms_send(0xaa);
   ms_send(ms_type);
   #ifdef MSIN
@@ -77,7 +77,7 @@ s16 ms_remain_xyz(s16 xyz) {
   return 0;
 }
 
-s64 ms_send_callback() {
+s64 ms_send_callback(alarm_id_t, void *) {
   if(!ms_streaming) return 0;
 
   if(!ms_out.busy) {
@@ -213,5 +213,5 @@ void ms_init(u8 gpio_out, u8 gpio_in) {
   #else
     (void)gpio_in;
   #endif
-  ms_reset_callback();
+  ms_reset_callback(0, NULL);
 }
