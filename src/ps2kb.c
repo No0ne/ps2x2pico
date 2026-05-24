@@ -141,7 +141,7 @@ void kb_set_leds(u8 byte) {
   #endif
 }
 
-s64 blink_callback() {
+s64 blink_callback(alarm_id_t, void *) {
   if(blinking) {
     printf("Blinking keyboard LEDs\n");
     kb_set_leds(KEYBOARD_LED_NUMLOCK | KEYBOARD_LED_CAPSLOCK | KEYBOARD_LED_SCROLLLOCK);
